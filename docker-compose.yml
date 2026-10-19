@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lumini-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lumini_user
+      POSTGRES_PASSWORD: lumini_password_dev_2026
+      POSTGRES_DB: lumini_v2_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lumini_user -d lumini_v2_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
+    container_name: lumini-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: lumini_minio_admin
+      MINIO_ROOT_PASSWORD: lumini_minio_secret_2026
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web Console
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  miniodata:

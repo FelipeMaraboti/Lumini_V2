@@ -1,0 +1,13 @@
+{
+  "name": "@lumini/geometry-core",
+  "version": "1.0.0",
+  "description": "Núcleo geométrico canônico em milímetros para a plataforma Lumini",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 0"
+  },
+  "keywords": ["cad", "geometry", "stone", "marble", "granite", "nesting"],
+  "author": "Lumini Team",
+  "license": "UNLICENSED"
+}
