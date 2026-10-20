@@ -28,6 +28,13 @@ export function AppRouter() {
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id" element={<ProjectPage />} />
           </Route>
+          <Route element={<RequireAuth permission="projects.read" />}>
+            <Route element={<RequireAuth permission="drawing.read" />}>
+              <Route element={<RequireAuth permission="drawing.edit" />}>
+                <Route path="/projects/:id/drawing" element={<App />} />
+              </Route>
+            </Route>
+          </Route>
           <Route element={<RequireAuth permission="members.read" />}>
             <Route path="/settings/members" element={<MembersPage />} />
           </Route>

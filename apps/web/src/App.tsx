@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { 
   Compass, 
   Scissors, 
@@ -22,6 +22,9 @@ import { MaskedText } from '@/components/ui/MaskedText';
 import { PieceEditor, type DimensionOverride } from '@/editor2d/PieceEditor';
 import { AssemblyView } from '@/editor3d/AssemblyView';
 import { initialKitchen, type PlacedPart } from '@/editor2d/kitchen';
+import { deleteEditorDraft, readEditorDraft, writeEditorDraft } from '@/editor2d/editorDraft';
+import { ApiError, apiRequest } from '@/services/apiClient';
+import { loadDrawingProject, saveDrawingSnapshot, type DrawingProject, type DrawingRevision } from '@/features/projects/projectDrawing';
 
 const finishLabel: Record<EdgeFinishType, string> = {
   raw: 'Corte bruto',
@@ -35,7 +38,24 @@ const finishLabel: Record<EdgeFinishType, string> = {
 };
 
 export default function App() {
+  const { id: projectId } = useParams();
+  const isProjectDrawing = Boolean(projectId);
   const { user, logout, hasAnyPermission } = useAuth();
+  const [drawingProject, setDrawingProject] = useState<DrawingProject | null>(null);
+  const [drawingRevision, setDrawingRevision] = useState<DrawingRevision | null>(null);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+  const [materials, setMaterials] = useState<Array<{ id: string; name: string; thicknessesMm: number[]; colorHex: string }>>([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+  const [newWidthMm, setNewWidthMm] = useState(1200);
+  const [newDepthMm, setNewDepthMm] = useState(600);
+  const [newThicknessMm, setNewThicknessMm] = useState(20);
+  const draftKey = user
+    ? isProjectDrawing && drawingRevision
+      ? `tenant:${user.tenantId}:user:${user.userId}:project:${projectId}:revision:${drawingRevision.id}`
+      : isProjectDrawing
+        ? null
+        : `tenant:${user.tenantId}:user:${user.userId}:workspace-editor`
+    : null;
   const [isDark, setIsDark] = useState(() => {
     const stored = localStorage.getItem('lumini_theme');
     return stored ? stored === 'dark' : true;
@@ -43,14 +63,176 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'drawing' | 'pricing' | 'cutting' | 'inventory' | 'documents'>('drawing');
   const [selectedPartId, setSelectedPartId] = useState<string>('part-1');
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>('e3');
-  const [placed, setPlaced] = useState<PlacedPart[]>(() => initialKitchen());
+  const [placed, setPlaced] = useState<PlacedPart[]>(() => isProjectDrawing ? [] : initialKitchen());
   const [editorNotice, setEditorNotice] = useState<string | null>(null);
   const [dimensionState, setDimensionState] = useState<Record<string, DimensionOverride>>({});
+  const [draftStatus, setDraftStatus] = useState<'loading' | 'recovery' | 'ready' | 'saving' | 'saved' | 'error' | 'conflict' | 'readonly'>('loading');
+  const [recoverableDraft, setRecoverableDraft] = useState<Awaited<ReturnType<typeof readEditorDraft>>>(null);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(false);
+  const [draftLoadedForKey, setDraftLoadedForKey] = useState<string | null>(null);
+  const [serverAutosaveEnabled, setServerAutosaveEnabled] = useState(false);
+  const revisionVersionRef = useRef<number | null>(null);
+  const savedSnapshotRef = useRef<string | null>(null);
+  const serverConflictRef = useRef(false);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [space, setSpace] = useState<'2d' | '3d'>('2d');
   const placedRef = useRef(placed);
   const pastRef = useRef<PlacedPart[][]>([]);
   const futureRef = useRef<PlacedPart[][]>([]);
   placedRef.current = placed;
+
+  useEffect(() => {
+    if (!projectId) {
+      setDrawingProject(null);
+      setDrawingRevision(null);
+      setProjectLoadError(null);
+      return;
+    }
+    let active = true;
+    setDrawingProject(null);
+    setDrawingRevision(null);
+    setProjectLoadError(null);
+    setDraftLoadedForKey(null);
+    setAutosaveEnabled(false);
+    setServerAutosaveEnabled(false);
+    serverConflictRef.current = false;
+    loadDrawingProject(projectId)
+      .then(({ project, revision, snapshot }) => {
+        if (!active) return;
+        setDrawingProject(project);
+        setDrawingRevision(revision);
+        setPlaced(snapshot.placed);
+        setDimensionState(snapshot.dimensionState);
+        setSelectedPartId(snapshot.placed[0]?.part.id ?? '');
+        setSelectedEdgeId(snapshot.placed[0]?.part.edges[0]?.id ?? null);
+        revisionVersionRef.current = revision.version;
+        savedSnapshotRef.current = JSON.stringify({ schemaVersion: 1, placed: snapshot.placed, dimensionState: snapshot.dimensionState });
+        const canEdit = revision.status === 'Draft' && project.status === 'Draft';
+        setServerAutosaveEnabled(canEdit);
+        if (!canEdit) setDraftStatus('readonly');
+        if (snapshot.placed.length === 0) {
+          void apiRequest<Array<{ id: string; name: string; thicknessesMm: number[]; colorHex: string }>>('/catalog/materials')
+            .then(({ data }) => {
+              if (!active) return;
+              setMaterials(data);
+              setSelectedMaterialId(data[0]?.id ?? '');
+              setNewThicknessMm(data[0]?.thicknessesMm[0] ?? 20);
+            })
+            .catch((error) => {
+              if (active) setProjectLoadError(error instanceof ApiError ? error.message : 'Não foi possível carregar materiais para iniciar o desenho.');
+            });
+        }
+      })
+      .catch((error) => {
+        if (!active) return;
+        setProjectLoadError(error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'Falha ao carregar o desenho.');
+        setDraftStatus('error');
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    let active = true;
+    setDraftStatus('loading');
+    setDraftLoadedForKey(null);
+    readEditorDraft(draftKey)
+      .then((draft) => {
+        if (!active) return;
+        const localIsCurrent = isProjectDrawing && draft && draft.syncedVersion === revisionVersionRef.current;
+        if (localIsCurrent) {
+          setPlaced(draft.placed);
+          setDimensionState(draft.dimensionState);
+          setRecoverableDraft(null);
+        } else {
+          setRecoverableDraft(draft);
+        }
+        const needsRecovery = Boolean(draft && !localIsCurrent);
+        const editable = !isProjectDrawing || (drawingRevision?.status === 'Draft' && drawingProject?.status === 'Draft');
+        setDraftStatus(!editable ? 'readonly' : needsRecovery ? 'recovery' : 'ready');
+        setAutosaveEnabled(editable && !needsRecovery);
+        setDraftLoadedForKey(draftKey);
+      })
+      .catch(() => {
+        if (active) setDraftStatus('error');
+      });
+    return () => {
+      active = false;
+    };
+  }, [draftKey, isProjectDrawing, drawingRevision?.id, drawingRevision?.status, drawingProject?.status]);
+
+  useEffect(() => {
+    if (!draftKey || draftLoadedForKey !== draftKey || !autosaveEnabled) return;
+    const snapshot = { schemaVersion: 1 as const, placed, dimensionState };
+    const serializedSnapshot = JSON.stringify(snapshot);
+    if (isProjectDrawing && serializedSnapshot === savedSnapshotRef.current) return;
+    const revisionId = drawingRevision?.id;
+    setDraftStatus('saving');
+    const timeout = window.setTimeout(() => {
+      const localDraft = {
+        schemaVersion: 1 as const,
+        savedAt: new Date().toISOString(),
+        placed,
+        dimensionState,
+        ...(isProjectDrawing && revisionId ? {
+          projectId: projectId!,
+          revisionId,
+          syncedVersion: null,
+        } : {}),
+      };
+      saveQueueRef.current = saveQueueRef.current.catch(() => undefined).then(async () => {
+        await writeEditorDraft(draftKey, localDraft);
+        if (isProjectDrawing && serverConflictRef.current) {
+          setDraftStatus('conflict');
+          return;
+        }
+        if (isProjectDrawing && revisionId && serverAutosaveEnabled) {
+          const expectedVersion = revisionVersionRef.current;
+          if (expectedVersion === null) throw new Error('Versão da revisão indisponível para sincronização.');
+          try {
+            const response = await saveDrawingSnapshot(revisionId, expectedVersion, snapshot);
+            revisionVersionRef.current = response.data.version;
+            savedSnapshotRef.current = serializedSnapshot;
+            setDrawingRevision(response.data);
+            await writeEditorDraft(draftKey, { ...localDraft, syncedVersion: response.data.version });
+          } catch (error) {
+            if (error instanceof ApiError && error.code === 'RESOURCE_CONFLICT') {
+              serverConflictRef.current = true;
+              setDraftStatus('conflict');
+              return;
+            }
+            setDraftStatus('error');
+            return;
+          }
+        }
+        setDraftStatus('saved');
+      }).catch(() => setDraftStatus('error'));
+    }, 1000);
+    return () => window.clearTimeout(timeout);
+  }, [draftKey, draftLoadedForKey, autosaveEnabled, placed, dimensionState, isProjectDrawing, drawingRevision?.id, projectId, serverAutosaveEnabled]);
+
+  function recoverDraft() {
+    if (!recoverableDraft) return;
+    setPlaced(recoverableDraft.placed);
+    setDimensionState(recoverableDraft.dimensionState);
+    setDraftStatus('ready');
+    setAutosaveEnabled(true);
+    setRecoverableDraft(null);
+  }
+
+  async function discardDraft() {
+    if (!draftKey) return;
+    try {
+      await deleteEditorDraft(draftKey);
+      setRecoverableDraft(null);
+      setDraftStatus('ready');
+      setAutosaveEnabled(true);
+    } catch {
+      setDraftStatus('error');
+    }
+  }
 
   // Sincroniza com ThemeToggle / localStorage
   useEffect(() => {
@@ -62,8 +244,9 @@ export default function App() {
   }, []);
 
   const selected = placed.find((item) => item.part.id === selectedPartId) ?? placed[0];
-  const selectedPart = selected.part;
-  const selectedBox = boundsOf(selectedPart.outerContour);
+  const selectedPart = selected?.part;
+  const selectedBox = selectedPart ? boundsOf(selectedPart.outerContour) : null;
+  const editorReadOnly = isProjectDrawing && (!serverAutosaveEnabled || !autosaveEnabled);
 
   function selectPart(partId: string) {
     setSelectedPartId(partId);
@@ -132,6 +315,22 @@ export default function App() {
       materialName: source.materialName,
       thicknessMm: source.thicknessMm,
     }, 1200, 600));
+  }
+
+  function addInitialPart() {
+    const material = materials.find((item) => item.id === selectedMaterialId);
+    if (!material || !material.thicknessesMm.includes(newThicknessMm) || newWidthMm <= 0 || newDepthMm <= 0) return;
+    const part = rectanglePart({
+      id: crypto.randomUUID(),
+      partCode: 'PC-01',
+      name: 'Bancada',
+      materialId: material.id,
+      materialName: material.name,
+      thicknessMm: newThicknessMm,
+    }, newWidthMm, newDepthMm);
+    setPlaced([{ xMm: 0, yMm: 0, part }]);
+    setSelectedPartId(part.id);
+    setSelectedEdgeId(part.edges[0]?.id ?? null);
   }
 
   function addL() {
@@ -213,6 +412,71 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  if (!selectedPart || !selectedBox) {
+    return (
+      <main className="min-h-screen bg-background p-6 text-foreground">
+        <div className="mx-auto max-w-3xl space-y-5">
+          <Link to={projectId ? `/projects/${projectId}` : '/projects'} className="text-xs text-primary hover:underline">← Projeto</Link>
+          <header>
+            <p className="font-mono text-xs text-primary">{drawingProject?.code ?? 'Desenho'}</p>
+            <h1 className="text-xl font-semibold">{drawingProject?.name ?? 'Iniciar desenho técnico'}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{drawingProject ? `REV ${drawingRevision?.revisionNumber ?? '—'} · ${drawingRevision?.status ?? 'carregando'}` : 'Carregando projeto e revisão…'}</p>
+          </header>
+          {projectLoadError && <p className="text-sm text-destructive" role="alert">{projectLoadError}</p>}
+          {draftStatus === 'recovery' && recoverableDraft && (
+            <div className="flex items-center justify-between gap-4 border border-amber-500/40 bg-amber-500/10 p-3" role="alert">
+              <div>
+                <p className="text-sm font-semibold">Há alterações locais não sincronizadas.</p>
+                <p className="text-xs text-muted-foreground">Último salvamento: {new Date(recoverableDraft.savedAt).toLocaleString()}</p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={recoverDraft} className="border border-primary/50 px-3 py-1.5 text-xs font-semibold text-primary">Recuperar</button>
+                <button type="button" onClick={() => void discardDraft()} className="border border-border px-3 py-1.5 text-xs">Descartar</button>
+              </div>
+            </div>
+          )}
+          {draftStatus === 'conflict' && (
+            <div className="flex items-center justify-between gap-4 border border-amber-500/40 bg-amber-500/10 p-3" role="alert">
+              <p className="text-sm">A revisão mudou no servidor. Suas alterações estão preservadas neste dispositivo; ao recarregar, você poderá recuperá-las ou descartá-las.</p>
+              <button type="button" onClick={() => window.location.reload()} className="shrink-0 border border-amber-500/50 px-3 py-1.5 text-xs font-semibold">Recarregar revisão</button>
+            </div>
+          )}
+          {drawingRevision && !serverAutosaveEnabled && <p className="border border-amber-500/40 bg-amber-500/10 p-3 text-sm">Esta revisão não está em rascunho e não pode ser editada.</p>}
+          {drawingRevision && serverAutosaveEnabled && draftStatus !== 'recovery' && (
+            <form onSubmit={(event) => { event.preventDefault(); addInitialPart(); }} className="grid gap-4 border border-border bg-card p-4 sm:grid-cols-2">
+              <label className="grid gap-1 text-xs text-muted-foreground sm:col-span-2">
+                Material
+                <select value={selectedMaterialId} onChange={(event) => {
+                  const material = materials.find((item) => item.id === event.target.value);
+                  setSelectedMaterialId(event.target.value);
+                  setNewThicknessMm(material?.thicknessesMm[0] ?? 20);
+                }} required className="h-10 border border-input bg-background px-3 text-sm text-foreground" disabled={!materials.length}>
+                  {materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
+                </select>
+                {!materials.length && <span>Nenhum material disponível no catálogo.</span>}
+              </label>
+              <label className="grid gap-1 text-xs text-muted-foreground">
+                Largura (mm)
+                <input type="number" min="1" step="1" value={newWidthMm} onChange={(event) => setNewWidthMm(Number(event.target.value))} className="h-10 border border-input bg-background px-3 text-sm text-foreground" />
+              </label>
+              <label className="grid gap-1 text-xs text-muted-foreground">
+                Profundidade (mm)
+                <input type="number" min="1" step="1" value={newDepthMm} onChange={(event) => setNewDepthMm(Number(event.target.value))} className="h-10 border border-input bg-background px-3 text-sm text-foreground" />
+              </label>
+              <label className="grid gap-1 text-xs text-muted-foreground sm:col-span-2">
+                Espessura
+                <select value={newThicknessMm} onChange={(event) => setNewThicknessMm(Number(event.target.value))} className="h-10 border border-input bg-background px-3 text-sm text-foreground" disabled={!materials.length}>
+                  {(materials.find((item) => item.id === selectedMaterialId)?.thicknessesMm ?? []).map((thickness) => <option key={thickness} value={thickness}>{thickness} mm</option>)}
+                </select>
+              </label>
+              <button type="submit" disabled={!materials.length || draftStatus === 'loading'} className="h-10 border border-primary/50 bg-primary/10 px-4 text-sm font-semibold text-primary disabled:opacity-50 sm:col-span-2">Criar peça e abrir editor</button>
+            </form>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen bg-background text-foreground font-sans overflow-hidden transition-colors duration-200 antialiased">
       {/* SIDEBAR NAVEGAÇÃO PRINCIPAL */}
@@ -240,10 +504,10 @@ export default function App() {
           <div className="p-3 mx-3 my-3 rounded-lg bg-card border border-border shadow-2xs">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
               <span className="font-semibold uppercase tracking-wider text-[10px]">Projeto Ativo</span>
-              <span className="text-primary font-mono text-[10px] bg-primary/10 px-1.5 py-0.5 rounded font-bold">REV 03</span>
+              <span className="text-primary font-mono text-[10px] bg-primary/10 px-1.5 py-0.5 rounded font-bold">{drawingRevision ? `REV ${drawingRevision.revisionNumber}` : 'REV 03'}</span>
             </div>
-            <p className="text-xs font-semibold text-foreground truncate">Residência Alphaville - Cozinha</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Cliente: Dr. Carlos Eduardo</p>
+            <p className="text-xs font-semibold text-foreground truncate">{drawingProject?.name ?? 'Residência Alphaville - Cozinha'}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{drawingProject ? `Código: ${drawingProject.code}` : 'Cliente: Dr. Carlos Eduardo'}</p>
           </div>
 
           {/* Menus dos Módulos Principais */}
@@ -380,16 +644,58 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1 rounded-md border border-border text-xs text-muted-foreground">
-              <Check size={14} weight="bold" className="text-emerald-500" />
-              <span>Autosave: Sincronizado</span>
+            <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1 border border-border text-xs text-muted-foreground" role="status" aria-live="polite">
+              {draftStatus === 'saved' ? <Check size={14} weight="bold" className="text-emerald-500" /> : null}
+              <span>{
+                draftStatus === 'loading' ? 'Carregando rascunho…' :
+                draftStatus === 'recovery' ? 'Rascunho local recuperável' :
+                draftStatus === 'saving' ? (isProjectDrawing && serverAutosaveEnabled ? 'Salvando local e sincronizando…' : 'Salvando localmente…') :
+                draftStatus === 'saved' ? (isProjectDrawing && serverAutosaveEnabled ? 'Sincronizado com servidor' : 'Rascunho salvo neste dispositivo') :
+                draftStatus === 'conflict' ? 'Conflito remoto: rascunho preservado' :
+                draftStatus === 'readonly' ? 'Revisão somente leitura' :
+                draftStatus === 'error' ? 'Falha no autosave local' : 'Alterações locais pendentes'
+              }</span>
             </div>
-            <button className="flex items-center gap-1.5 border border-border bg-foreground/5 hover:border-primary/50 text-foreground px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer">
+            <button
+              type="button"
+              disabled={!autosaveEnabled || draftStatus === 'loading' || draftStatus === 'recovery' || draftStatus === 'saving'}
+              onClick={() => {
+                if (!draftKey) return;
+                setDraftStatus('saving');
+                void writeEditorDraft(draftKey, {
+                  schemaVersion: 1,
+                  savedAt: new Date().toISOString(),
+                  placed,
+                  dimensionState,
+                }).then(() => setDraftStatus('saved')).catch(() => setDraftStatus('error'));
+              }}
+              className="flex items-center gap-1.5 border border-border bg-foreground/5 hover:border-primary/50 text-foreground px-3.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-50"
+            >
               <FloppyDisk size={16} weight="bold" className="text-primary" />
-              <span>Salvar Revisão</span>
+              <span>Salvar rascunho local</span>
             </button>
           </div>
         </header>
+
+        {projectLoadError && (
+          <div className="border-b border-destructive/40 bg-destructive/10 px-5 py-3 text-sm text-destructive" role="alert">
+            {projectLoadError}
+            <Link to="/projects" className="ml-3 font-semibold underline">Voltar aos projetos</Link>
+          </div>
+        )}
+
+        {draftStatus === 'recovery' && recoverableDraft && (
+          <div className="flex shrink-0 items-center justify-between gap-4 border-b border-amber-500/40 bg-amber-500/10 px-5 py-3 text-sm" role="alert">
+            <div>
+              <p className="font-semibold text-foreground">Há alterações locais não sincronizadas.</p>
+              <p className="text-xs text-muted-foreground">Último salvamento: {new Date(recoverableDraft.savedAt).toLocaleString()}</p>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={recoverDraft} className="border border-primary/50 px-3 py-1.5 text-xs font-semibold text-primary">Recuperar</button>
+              <button type="button" onClick={() => void discardDraft()} className="border border-border px-3 py-1.5 text-xs">Descartar</button>
+            </div>
+          </div>
+        )}
 
         {/* CORPO DO MÓDULO ATIVO */}
         <div className="flex-1 flex overflow-hidden">
@@ -402,12 +708,12 @@ export default function App() {
                   <span>unidade mm · grade 50 · snap 5</span>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-zinc-700 px-2 py-1">
-                  <ToolButton onClick={addRectangle}>Retângulo</ToolButton>
-                  <ToolButton onClick={addL}>Em L</ToolButton>
-                  <ToolButton onClick={insertHole}>Furo Ø 35</ToolButton>
-                  <ToolButton onClick={insertSink}>Cuba</ToolButton>
-                  <ToolButton onClick={undo}>Desfazer</ToolButton>
-                  <ToolButton onClick={redo}>Refazer</ToolButton>
+                  <ToolButton disabled={editorReadOnly} onClick={addRectangle}>Retângulo</ToolButton>
+                  <ToolButton disabled={editorReadOnly} onClick={addL}>Em L</ToolButton>
+                  <ToolButton disabled={editorReadOnly} onClick={insertHole}>Furo Ø 35</ToolButton>
+                  <ToolButton disabled={editorReadOnly} onClick={insertSink}>Cuba</ToolButton>
+                  <ToolButton disabled={editorReadOnly} onClick={undo}>Desfazer</ToolButton>
+                  <ToolButton disabled={editorReadOnly} onClick={redo}>Refazer</ToolButton>
                   <span className="mx-1 h-4 w-px bg-zinc-700" />
                   <ToolButton active={space === '2d'} onClick={() => setSpace('2d')}>2D</ToolButton>
                   <ToolButton active={space === '3d'} onClick={() => setSpace('3d')}>3D</ToolButton>
@@ -428,6 +734,7 @@ export default function App() {
                     setSelectedEdgeId(edgeId);
                   }}
                   dimensionState={dimensionState}
+                  readOnly={editorReadOnly}
                   onDimension={setDimension}
                 />
                 )}
@@ -493,7 +800,7 @@ export default function App() {
                           id={`edge-${selectedPart.id}-${edge.id}`}
                           className={`flex w-full items-center justify-between border bg-card p-2 text-left ${selectedEdgeId === edge.id ? 'border-primary/60 shadow-[inset_2px_0_0_0_var(--primary)]' : 'border-border'}`}
                         >
-                          <button type="button" onClick={() => setSelectedEdgeId(edge.id)} className="min-w-0 flex-1 text-left">
+                            <button type="button" onClick={() => setSelectedEdgeId(edge.id)} className="min-w-0 flex-1 text-left">
                             <span className="font-mono text-[10px] font-bold text-primary">{edge.id.toUpperCase()}</span>
                             <span className="mt-0.5 block text-[11px] text-foreground">{finishLabel[edge.finish]}</span>
                           </button>
@@ -503,6 +810,7 @@ export default function App() {
                               setSelectedEdgeId(edge.id);
                               cycleFinish(edge.id);
                             }}
+                            disabled={editorReadOnly}
                             className="shrink-0 border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground"
                           >
                             trocar
@@ -510,6 +818,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setDimension(selectedPart.id, edge.id, { offsetMm: dimension.offsetMm, visible: !dimension.visible })}
+                            disabled={editorReadOnly}
                             className="ml-1 shrink-0 border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground"
                           >
                             {dimension.visible ? 'ocultar' : 'cota'}
@@ -724,12 +1033,13 @@ export default function App() {
   );
 }
 
-function ToolButton({ children, onClick, active = false }: { children: string; onClick: () => void; active?: boolean }) {
+function ToolButton({ children, onClick, active = false, disabled = false }: { children: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`border px-2 py-1 text-[11px] ${active ? 'border-primary/60 bg-primary/10 text-primary' : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-primary/50'}`}
+      disabled={disabled}
+      className={`border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${active ? 'border-primary/60 bg-primary/10 text-primary' : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-primary/50'}`}
     >
       {children}
     </button>

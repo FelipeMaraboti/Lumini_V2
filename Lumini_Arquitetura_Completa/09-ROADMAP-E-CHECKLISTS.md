@@ -1,5 +1,7 @@
 # 9. Plano de implementação, riscos e checklists
 
+> **Governança do andamento:** a execução e o status das sprints são acompanhados exclusivamente em [`docs/ROADMAP_CENTRAL.md`](../docs/ROADMAP_CENTRAL.md). As fases abaixo descrevem uma visão arquitetural de dependências e entregáveis; não são um cronograma paralelo e não devem ser usadas para marcar progresso.
+
 ## 9.1 Fases de implementação
 
 | Fase | Entregáveis | Dependências / gate |

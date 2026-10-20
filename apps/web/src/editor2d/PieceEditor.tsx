@@ -53,6 +53,7 @@ interface PieceEditorProps {
   onSelectPart: (partId: string) => void;
   onSelectEdge: (partId: string, edgeId: string) => void;
   onGestureStart?: () => void;
+  readOnly?: boolean;
   dimensionState: Record<string, DimensionOverride>;
   onDimension: (partId: string, edgeId: string, next: DimensionOverride) => void;
 }
@@ -86,6 +87,7 @@ export function PieceEditor({
   onSelectPart,
   onSelectEdge,
   onGestureStart,
+  readOnly = false,
   dimensionState,
   onDimension,
 }: PieceEditorProps) {
@@ -266,6 +268,13 @@ export function PieceEditor({
   function onPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     const mm = toMm(event);
     const target = hit(mm);
+    if (readOnly && target.kind !== 'pan') {
+      if (target.kind === 'part' || target.kind === 'edge' || target.kind === 'hole' || target.kind === 'opening' || target.kind === 'opening-edge' || target.kind === 'dimension') {
+        onSelectPart(target.id);
+      }
+      if (target.kind === 'edge' || target.kind === 'dimension') onSelectEdge(target.id, target.edgeId);
+      return;
+    }
     if (target.kind === 'dimension' && event.detail >= 2) {
       const current = dimensionOverride(target.id, target.edgeId);
       onDimension(target.id, target.edgeId, { ...current, visible: false });
@@ -470,7 +479,7 @@ export function PieceEditor({
   return (
     <div ref={wrapRef} className="relative flex h-full min-h-0 flex-1 flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-card/80 px-4 text-[11px] text-muted-foreground">
-        <span>Arraste a peça, a borda, o furo, a cuba ou a cota. Duplo clique na cota oculta. Snap {5} mm.</span>
+        <span>{readOnly ? 'Revisão aprovada · somente leitura' : <>Arraste a peça, a borda, o furo, a cuba ou a cota. Duplo clique na cota oculta. Snap {5} mm.</>}</span>
         <span className="border border-border bg-muted px-2 py-0.5 font-mono text-foreground">{zoomLabel}</span>
       </div>
       <svg

@@ -13,7 +13,7 @@ public static class CatalogEndpoints
 
         catalog.MapGet("/materials", async (ICatalogService service, CancellationToken ct) =>
             Results.Ok(await service.ListMaterialsAsync(ct)))
-            .RequireAuthorization(AuthorizationPolicies.For(Permissions.PricingRead));
+            .RequireAuthorization(AuthorizationPolicies.For(Permissions.DrawingRead));
 
         catalog.MapPost("/materials", async (UpsertMaterialRequest request, ICatalogService service, HttpContext http, CancellationToken ct) =>
         {

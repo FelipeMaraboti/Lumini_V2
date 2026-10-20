@@ -12,6 +12,7 @@ using Lumini.Application.Identity.DTOs;
 using Lumini.Application.Identity.Services;
 using Lumini.Domain.Identity;
 using Lumini.Application.Projects.Services;
+using Lumini.Application.Pricing;
 using Lumini.Infrastructure.Persistence;
 using Lumini.Infrastructure.Security;
 using Lumini.Infrastructure.Storage;
@@ -58,6 +59,7 @@ builder.Services.AddScoped<IProjectRepository, Lumini.Infrastructure.Persistence
 builder.Services.AddScoped<ICatalogRepository, Lumini.Infrastructure.Persistence.Repositories.CatalogRepository>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<ICatalogService, CatalogService>();
+builder.Services.AddScoped<QuotePreviewService>();
 var storageProvider = builder.Configuration["Storage:Provider"] ?? "Local";
 if (storageProvider.Equals("S3", StringComparison.OrdinalIgnoreCase))
 {
@@ -327,6 +329,7 @@ rolesGroup.MapPost("/", async (CreateRoleRequest request, IAuthService authServi
 
 api.MapWorkspaceEndpoints();
 api.MapCatalogEndpoints();
+api.MapQuoteEndpoints();
 
 api.MapGet("/files/{token}", async (string token, IFileStorage storage, CancellationToken ct) =>
 {

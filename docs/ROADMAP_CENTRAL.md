@@ -6,6 +6,8 @@
 **Referência Arquitetural:** `Lumini_Arquitetura_Completa/` (00 a 10) e `docs/PRODUCT_VISION.md`  
 **Governança:** `AGENTS.md`  
 
+> **Fonte oficial de execução:** este documento é a referência única para a ordem e o andamento das sprints. Ao concluir e validar trabalho, atualize aqui os checklists e a matriz de rastreabilidade. Roadmaps e fases descritos na arquitetura completa são referências de escopo e dependências; não substituem nem mantêm um status paralelo.
+
 ---
 
 ## 1. Diagnóstico do Problema e Visão Arquitetural
@@ -229,7 +231,7 @@ LuminiV2/
 
 ### Sprint 4: Motor de Geometria e Editor 2D (CAD Especializado)
 **Meta:** Desenvolver o núcleo do editor de desenho técnico em milímetros (`mm`), permitindo modelar bancadas, ilhas, frontões, saias, recortes de cuba e furos com precisão cirúrgica e cotas automáticas (`RF-005`, `RF-006`, `RF-008`).
-**Status:** **EM ANDAMENTO em 20/10/2026** — modelo, validação, canvas, cotas, acabamento por aresta e desfazer estão no ar. Faltam cuba oval, polígono livre, autosave e o teste de 50 peças.
+**Status:** **EM ANDAMENTO em 20/10/2026** — modelo, validação, canvas, cotas, acabamento por aresta, desfazer, autosave/recuperação local e sincronização de snapshot com projeto/revisão real estão implementados. Faltam cuba oval, polígono livre e o teste de 50 peças.
 
 #### Motor Geométrico Canônico (`packages/geometry-core`)
 - [x] Implementar estruturas de dados geométricas canônicas em milímetros: *Concluído em 20/10/2026 (`packages/geometry-core/src/index.ts`).*
@@ -255,7 +257,8 @@ LuminiV2/
   - Seleção de borda da peça com aplicação de acabamento específico (ex: Borda frontal com 45° + saia de 40mm);
   - Destaque bidirecional: ao clicar na aresta no canvas, o painel foca na borda correspondente.
 - [x] Sistema de Undo / Redo baseado no padrão Command sobre o estado geométrico. *Concluído em 20/10/2026. Pilha de snapshots, botões e Ctrl+Z / Ctrl+Y.*
-- [ ] Mecanismo de Autosave local em IndexedDB com sincronização periódica de rascunho no backend (`RF-015`).
+- [x] Autosave local em IndexedDB, isolado por tenant/usuário, com recuperação explícita e status que não afirma sincronização (`RF-015`, parte local). *Concluído em 20/10/2026 (`apps/web/src/editor2d/editorDraft.ts`, workspace CAD).*
+- [x] Integrar editor a `/projects/:id/drawing`, carregar a revisão atual e sincronizar snapshots Draft com `If-Match`; manter IndexedDB como recuperação, preservar conflitos e bloquear edição de revisões aprovadas (`RF-015`). *Concluído em 20/10/2026. Revisões novas iniciam vazias e selecionam material/espessura do catálogo do tenant.*
 
 #### Testes & Validação
 - [x] Testes unitários do motor geométrico: precisão de cálculos de área, tolerâncias decimais e validação de furos fora do limite da pedra. *Concluído em 20/10/2026 (`packages/geometry-core/edit.test.ts`).*
@@ -282,8 +285,12 @@ LuminiV2/
 
 ### Sprint 6: Módulo de Orçamento e Precificação Dinâmica
 **Meta:** Calcular orçamentos precisos e auditáveis derivados diretamente das peças do projeto, tabelas de preços e acabamentos lineares, eliminando erros manuais de cálculo (`RF-011`, `RN-006`).
+**Status:** **INICIADA PARCIALMENTE em 20/10/2026** — prévia server-side por revisão/tabela, material bruto/líquido e acabamentos lineares implementada. Ainda não é orçamento persistido/aprovável; políticas comerciais e ligação do acabamento do desenho ao catálogo precisam ser fechadas.
 
 #### Backend
+- [x] Implementar prévia server-side de cálculo por revisão e tabela, usando `decimal`, recomputando áreas/metros a partir do snapshot e retornando avisos/valores incompletos quando faltar preço (`RF-011`, base de cálculo). *Concluído em 20/10/2026 (`QuoteCalculationEngine`, `POST /projects/{id}/quotes/preview`).*
+- [x] Listar tabelas disponíveis no contexto do projeto com isolamento tenant e autorização `projects.read` + `quotes.create`, sem exigir permissão administrativa de preços.
+- [ ] Fechar entidade persistida `Quote`, linhas imutáveis, estado de aprovação e auditoria. *Pendente: a prévia atual é somente leitura e não cria artefato comercial.*
 - [ ] Implementar motor de cálculo de custos e preços:
   - Custo de matéria-prima por área bruta e líquida ($m^2$);
   - Custo de acabamento linear por borda ($m$ linear de 45°, boleado, etc.);
@@ -295,6 +302,7 @@ LuminiV2/
 - [ ] Ao aprovar um orçamento, registrar evento de auditoria e snapshot comercial imutável.
 
 #### Frontend
+- [x] Adicionar prévia de cálculo ao detalhe do projeto: seleção de revisão/tabela, linhas por peça e avisos para itens sem regra; não exibir ação de aprovação (`RF-011`, fundação de `UI-008`). *Concluído em 20/10/2026 (`ProjectPage.tsx`).*
 - [ ] Construir tela de Orçamento (`UI-008`):
   - Tabela detalhada de itens com agrupamento por peça;
   - Resumo de custos: matéria-prima, acabamentos de borda, furos e insumos;
@@ -303,6 +311,13 @@ LuminiV2/
 
 #### Testes
 - [ ] Testes unitários com casos reais de bancadas com múltiplos acabamentos, garantindo que o cálculo monetário utiliza tipos decimais sem erros de arredondamento de float.
+- [x] Testes unitários iniciais da prévia: áreas bruta/líquida, acabamento precificado, preço ausente e furo sem tarifa. *Concluído em 20/10/2026 (`QuoteCalculationTests`, 4 testes).*
+
+#### Decisões e incongruências pendentes antes de fechar a Sprint 6
+- Definir com marmorarias se o material será cobrado por área bruta, líquida ou se ambos são apresentados com uma regra comercial explícita. A prévia retorna cenários bruto/líquido, não escolhe um total final.
+- O desenho armazena `EdgeFinishType` (`miter_45`, `straight_polish` etc.) enquanto preços referenciam `FinishTypeId`; a prévia usa um mapeamento explícito para códigos sem persistir o ID na aresta. Evoluir o contrato geométrico para guardar o acabamento de catálogo selecionado antes de permitir aprovação.
+- Definir tarifação de furos/recortes, cola, frete, instalação, impostos, margem, descontos, arredondamento final, validade e condições de pagamento. Linhas sem regra tornam o total da prévia indisponível.
+- Persistir snapshot da tabela e regras aplicadas no Quote aprovado para que alterações futuras no catálogo não alterem histórico comercial.
 
 ---
 
@@ -432,11 +447,11 @@ LuminiV2/
 | `RF-008` | Configuração de furos por diâmetro | Sprint 4 | [ ] Furo Ø 35 mm no desenho; diâmetro livre pendente |
 | `RF-009` | Acabamentos de borda (45°, boleado, rebaixo) | Sprint 3 & 4 | [x] Catálogo e marca no 2D e no 3D |
 | `RF-010` | Importação e parsing seguro de DXF | Sprint 10 | [ ] Pendente |
-| `RF-011` | Orçamento vinculado à revisão do projeto | Sprint 6 | [ ] Pendente |
+| `RF-011` | Orçamento vinculado à revisão do projeto | Sprint 6 | [ ] Parcial: prévia de cálculo server-side por revisão/tabela; faltam Quote persistido, regras comerciais validadas e aprovação imutável |
 | `RF-012` | Plano de corte com nesting e respeito ao disco | Sprint 8 | [ ] Pendente |
 | `RF-013` | Controle de estoque de chapas e sobras | Sprint 7 | [ ] Pendente |
 | `RF-014` | Geração de PDFs técnicos para fabricação | Sprint 9 | [ ] Pendente |
-| `RF-015` | Autosave e recuperação de rascunhos | Sprint 4 | [ ] Pendente |
+| `RF-015` | Autosave e recuperação de rascunhos | Sprint 4 | [x] IndexedDB, recuperação local e sincronização server-side versionada no editor de projeto |
 | `RF-016` | Histórico e auditoria de alterações | Sprint 2 & 11 | [ ] `audit_events` na Sprint 2; endurecimento da Sprint 11 pendente |
 | `RF-017` | Administração de papéis e permissões (RBAC) | Sprint 1 | [x] Policies + UI papéis/membros |
 | `RF-018` | Seleção de páginas na exportação de documentos | Sprint 9 | [ ] Pendente |
@@ -450,6 +465,6 @@ LuminiV2/
 
 ## 6. Próximo Passo Imediato
 
-**Sprint 4 e Sprint 5 em andamento.** No 2D faltam cuba oval, polígono livre, autosave em IndexedDB e o teste de 50 peças. No 3D a cozinha monta FR-01, BC-01 e SA-01 com o 45° reto; faltam o catálogo PBR de rochas, a confirmação da régua na pedra e a captura da cena para PDF.
+**Sprints 4 e 5 seguem em andamento; Sprint 6 iniciada parcialmente.** Na Sprint 4 faltam cuba oval, polígono livre e teste de 50 peças. Na Sprint 5 faltam catálogo PBR, medição confirmada na pedra e captura para PDF. A Sprint 6 tem prévia de cálculo versionada por revisão/tabela, mas não deve ser considerada orçamento final até validar área bruta/líquida, mapear acabamento a `FinishTypeId`, configurar preços para operações adicionais e persistir/aprovar Quote imutável.
 
 **Follow-ups finos (não bloqueantes):** recovery de senha; teste HTTP cross-tenant; mover JWT secret para secret store; validar `Storage:Provider=S3` com MinIO real quando o Docker estiver no ar (o adapter já existe; o desenvolvimento usa URL assinada local).
