@@ -6,6 +6,8 @@ export {
   PlacaInput,
   CurrencyInput,
   MmInput,
+  CmInput,
+  KgInput,
 } from './MaskedInput';
 export type { MaskedInputProps } from './MaskedInput';
 export { MaskedText } from './MaskedText';

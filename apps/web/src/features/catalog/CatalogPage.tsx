@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import { ApiError, apiRequest } from '@/services/apiClient';
 import { MaskedInput, MaskedText, MmInput } from '@/components/ui';
+import { parseDecimal, parseMm } from '@/lib/masks';
 
 interface MaterialItem {
   id: string;
@@ -121,8 +122,9 @@ export function CatalogPage() {
   );
 
   function addThickness() {
-    const raw = thicknessInput.replace(',', '.');
-    if (!raw || thicknesses.includes(raw)) return;
+    const parsed = parseMm(thicknessInput);
+    const raw = String(parsed);
+    if (!parsed || thicknesses.includes(raw)) return;
     setThicknesses((current) => [...current, raw].sort((a, b) => Number(a) - Number(b)));
     setThicknessInput('');
   }
@@ -133,7 +135,7 @@ export function CatalogPage() {
     const parsed = materialSchema.safeParse({
       name,
       rockKind,
-      density: density.replace(',', '.'),
+      density: String(parseDecimal(density)),
       colorHex,
       thicknesses,
     });
@@ -171,7 +173,7 @@ export function CatalogPage() {
         method: 'POST',
         body: JSON.stringify({
           finishId,
-          thicknessMm: checkThickness.replace(',', '.'),
+          thicknessMm: String(parseMm(checkThickness)),
         }),
       });
       setCompatibility(data);
@@ -243,11 +245,11 @@ export function CatalogPage() {
                 <span className="h-24 w-24 rounded-xl border border-border" style={{ background: selected.colorHex }} />
                 <div>
                   <h2 className="text-lg font-semibold">{selected.name}</h2>
-                  <p className="text-sm text-muted-foreground">{rockLabel(selected.rockKind)} · {selected.textureName || 'Textura não informada'} · {selected.densityKgPerM3} kg/m³</p>
+                  <p className="text-sm text-muted-foreground">{rockLabel(selected.rockKind)} · {selected.textureName || 'Textura não informada'} · <MaskedText mask="decimal" unit="kg/m³" value={selected.densityKgPerM3} /></p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {selected.thicknessesMm.map((thickness) => (
                       <span key={thickness} className="rounded-full bg-muted px-2 py-1 text-xs font-medium">
-                        <MaskedText mask="mm" value={String(thickness)} /> mm
+                        <MaskedText mask="mm" unit="mm" value={String(thickness)} />
                       </span>
                     ))}
                   </div>
@@ -265,7 +267,7 @@ export function CatalogPage() {
           <select value={rockKind} onChange={(e) => setRockKind(e.target.value as (typeof ROCKS)[number]['value'])} className="h-10 rounded-lg border border-input bg-background px-3 text-sm">
             {ROCKS.map((rock) => <option key={rock.value} value={rock.value}>{rock.label}</option>)}
           </select>
-          <input value={density} onChange={(e) => setDensity(e.target.value)} placeholder="Densidade kg/m³" className="h-10 rounded-lg border border-input bg-background px-3 text-sm" />
+          <MaskedInput mask="decimal" unit="kg/m³" value={density} onChange={setDensity} />
           <input value={texture} onChange={(e) => setTexture(e.target.value)} placeholder="Textura ou veio" className="h-10 rounded-lg border border-input bg-background px-3 text-sm" />
           <label className="flex h-10 items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm">
             <input type="color" value={colorHex} onChange={(e) => setColorHex(e.target.value)} />
@@ -275,7 +277,14 @@ export function CatalogPage() {
             <MmInput value={thicknessInput} onChange={setThicknessInput} />
             <button type="button" onClick={addThickness} className="h-10 rounded-lg border border-border px-3 text-sm">Adicionar</button>
           </div>
-          <p className="md:col-span-3 text-xs text-muted-foreground">Espessuras: {thicknesses.map((item) => `${item} mm`).join(', ') || 'nenhuma'}</p>
+          <p className="md:col-span-3 text-xs text-muted-foreground">
+            Espessuras:{' '}
+            {thicknesses.length === 0
+              ? 'nenhuma'
+              : thicknesses.map((item, index) => (
+                  <span key={item}>{index > 0 ? ', ' : ''}<MaskedText mask="mm" unit="mm" value={item} /></span>
+                ))}
+          </p>
           <button type="submit" className="h-10 rounded-lg bg-primary text-sm font-semibold text-primary-foreground md:col-span-3">Cadastrar material</button>
         </form>
 
@@ -287,7 +296,7 @@ export function CatalogPage() {
                 <EdgeProfile profile={finish.profile} />
                 <h3 className="mt-3 text-sm font-semibold">{finish.name}</h3>
                 <p className="mt-1 text-xs text-muted-foreground">{finish.description}</p>
-                <p className="mt-2 text-xs font-medium">Mínimo <MaskedText mask="mm" value={String(finish.minSlabThicknessMm)} /> mm</p>
+                <p className="mt-2 text-xs font-medium">Mínimo <MaskedText mask="mm" unit="mm" value={String(finish.minSlabThicknessMm)} /></p>
               </article>
             ))}
           </div>
@@ -302,7 +311,7 @@ export function CatalogPage() {
           <div className="flex flex-wrap gap-2 md:col-span-3">
             {activeThicknesses.map((thickness) => (
               <button key={thickness} type="button" onClick={() => setCheckThickness(thickness)} className="rounded-full border border-border px-2 py-1 text-xs">
-                {thickness} mm
+                <MaskedText mask="mm" unit="mm" value={thickness} />
               </button>
             ))}
           </div>
@@ -324,13 +333,13 @@ export function CatalogPage() {
               ? materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)
               : finishes.map((finish) => <option key={finish.id} value={finish.id}>{finish.name}</option>)}
           </select>
-          <MaskedInput mask="currency" value={unitPrice} onChange={setUnitPrice} />
+          <MaskedInput mask="currency" unit={priceBasis === 'SquareMeter' ? '/ m²' : '/ m'} value={unitPrice} onChange={setUnitPrice} />
           <button type="submit" className="h-10 rounded-lg bg-primary text-sm font-semibold text-primary-foreground">Adicionar regra</button>
           <ul className="md:col-span-2 space-y-1 text-sm">
             {defaultTable?.rules.map((rule) => (
               <li key={rule.id} className="flex justify-between border-t border-border py-2">
                 <span>{rule.basis === 'SquareMeter' ? materials.find((item) => item.id === rule.materialId)?.name : finishes.find((item) => item.id === rule.finishTypeId)?.name}</span>
-                <span><MaskedText mask="currency" value={rule.unitPrice} /> {rule.basis === 'SquareMeter' ? '/ m²' : '/ m'}</span>
+                <span><MaskedText mask="currency" unit={rule.basis === 'SquareMeter' ? '/ m²' : '/ m'} value={rule.unitPrice} /></span>
               </li>
             ))}
           </ul>

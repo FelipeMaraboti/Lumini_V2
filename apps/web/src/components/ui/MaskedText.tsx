@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { formatDisplay, type MaskKind } from '@/lib/masks';
+import { formatDisplay, withUnit, type MaskKind } from '@/lib/masks';
 
 export interface MaskedTextProps {
   mask: MaskKind;
@@ -7,6 +7,8 @@ export interface MaskedTextProps {
   className?: string;
   empty?: string;
   as?: 'span' | 'p' | 'div';
+  /** Unidade colada ao valor: "100 mm", "1.700 kg". */
+  unit?: string;
 }
 
 /** Exibição formatada (somente leitura) — telefone, CNPJ, placa, moeda, etc. */
@@ -15,12 +17,14 @@ export function MaskedText({
   value,
   className,
   empty = '—',
+  unit,
   as: Tag = 'span',
 }: MaskedTextProps) {
-  const text =
+  const formatted =
     value === null || value === undefined || value === ''
-      ? empty
+      ? ''
       : formatDisplay(mask, value);
+  const text = formatted && formatted !== '—' ? withUnit(formatted, unit) : formatted || empty;
 
   return (
     <Tag className={cn('tabular-nums tracking-tight', className)}>

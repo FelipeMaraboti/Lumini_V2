@@ -461,7 +461,7 @@ export default function App() {
                     <div>
                       <span className="text-[10px] text-muted-foreground">Espessura</span>
                       <p className="font-medium text-primary mt-0.5">
-                        <MaskedText mask="mm" value={selectedPart.thicknessMm} /> mm
+                        <MaskedText mask="mm" unit="mm" value={selectedPart.thicknessMm} />
                       </p>
                     </div>
                   </div>
@@ -627,7 +627,7 @@ export default function App() {
                     </div>
                     <p className="font-semibold text-foreground">Quartzito Calacatta Prime 20mm</p>
                     <p className="text-xs text-muted-foreground font-mono">
-                      Dimensões: <MaskedText mask="mm" value={3000} /> x <MaskedText mask="mm" value={1800} /> mm
+                      Dimensões: <MaskedText mask="mm" unit="mm" value={3000} /> x <MaskedText mask="mm" unit="mm" value={1800} />
                     </p>
                     <p className="text-[11px] text-muted-foreground">
                       Placa veículo: <MaskedText mask="placa" value="ABC1D23" className="font-mono" /> · Cavalete 03-B
@@ -640,7 +640,7 @@ export default function App() {
                     </div>
                     <p className="font-semibold text-foreground">Granito Preto São Gabriel 20mm</p>
                     <p className="text-xs text-muted-foreground font-mono">
-                      Dimensões: <MaskedText mask="mm" value={1800} /> x <MaskedText mask="mm" value={750} /> mm
+                      Dimensões: <MaskedText mask="mm" unit="mm" value={1800} /> x <MaskedText mask="mm" unit="mm" value={750} />
                     </p>
                     <p className="text-[11px] text-muted-foreground">
                       Contato: <MaskedText mask="phone" value="11999887766" />

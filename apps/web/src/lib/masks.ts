@@ -167,8 +167,15 @@ export function maskDecimal(value: string, maxDecimals = 2): string {
 
 export function parseDecimal(value: string): number {
   if (!value) return 0;
-  const normalized = value.replace(/\./g, '').replace(',', '.');
+  const numeric = String(value).replace(/[^\d.,-]/g, '');
+  const normalized = numeric.replace(/\./g, '').replace(',', '.');
   return Number(normalized) || 0;
+}
+
+/** Junta o número mascarado à unidade: "100 mm", "1.700 kg". */
+export function withUnit(formatted: string, unit?: string): string {
+  if (!formatted || !unit) return formatted;
+  return `${formatted} ${unit}`;
 }
 
 /** Medidas canônicas em mm (aceita vírgula ou ponto). */

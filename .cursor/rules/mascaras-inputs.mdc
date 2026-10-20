@@ -1,0 +1,13 @@
+---
+description: Máscaras obrigatórias em inputs e visualização de dados padrão
+alwaysApply: true
+---
+
+# Máscaras de input
+
+Todo campo com formato padrão usa `apps/web/src/lib/masks.ts` e `components/ui/MaskedInput` / `MaskedText`. Vale na escrita e na leitura.
+
+- Documento, telefone, CEP, RG, placa, moeda, percentual, data, hora, inteiro, decimal e milímetro nunca ficam em `<input>` cru.
+- Quantidade leva a unidade dentro do campo e na leitura: `100 mm`, `100 cm`, `1.700 kg`, `2.700 kg/m³`. Use a prop `unit` de `MaskedInput` / `MaskedText`, ou `MmInput`, `CmInput` e `KgInput`.
+- Moeda vai como string com duas casas para a API. Medidas canônicas continuam em milímetros.
+- Nome, e-mail, busca e texto livre seguem sem máscara.
