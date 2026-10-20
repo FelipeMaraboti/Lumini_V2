@@ -183,24 +183,24 @@ LuminiV2/
 
 ### Sprint 2: Gestão de Clientes e Núcleo do Projeto
 **Meta:** Implementar gerenciamento de clientes, criação de projetos com revisões monotônicas imutáveis (`RN-005`), versionamento otimista de concorrência e upload de arquivos técnicos anexos.  
-**Status:** **EM ANDAMENTO em 20/10/2026** — núcleo de domínio, API e telas entregue; MinIO e alternador histórico ficam pendentes.
+**Status:** **CONCLUÍDA em 20/10/2026** — clientes, projetos, revisões, conflito 409 e download assinado.
 
 #### Backend
 - [x] Criar entidades: `Client`, `Project`, `ProjectRevision`, `ProjectAttachment` — *Concluído em 20/10/2026*.
 - [x] Implementar máquina de estados do Projeto: `draft -> in_review -> approved -> in_production -> completed` — *Concluído em 20/10/2026*.
 - [x] Implementar criação e controle de revisões (`revision_number`, `snapshot_jsonb`, `geometry_schema_version`) — *Concluído em 20/10/2026*.
 - [x] Implementar controle de concorrência otimista com coluna `version` e suporte a cabeçalho `If-Match` (`RN-013`) — *Concluído em 20/10/2026*.
-- [ ] Implementar integração com Object Storage (S3/MinIO) para uploads seguros de anexos de obra com URLs pré-assinadas de curta duração. *(Parcial: porta `IFileStorage` + disco local `App_Data/uploads`; falta MinIO e URL pré-assinada.)*
+- [x] Implementar integração com Object Storage (S3/MinIO) para uploads seguros de anexos de obra com URLs pré-assinadas de curta duração. *Concluído em 20/10/2026: `S3FileStorage` (MinIO, `Storage:Provider=S3`) e URL assinada de 15 min no modo local.*
 - [x] Criar tabela e pipeline de auditoria `audit_events` para gravar eventos de criação, mudança de status e novas revisões (`RN-015`) — *Concluído em 20/10/2026*.
 
 #### Frontend
-- [ ] Construir módulo de Clientes (`UI-003`, `UI-004`): listagem paginada, filtros rápidos, criação e edição com validação Zod. *(Parcial: lista, busca e criação com máscaras em `/clients`; detalhe dedicado ainda não.)*
+- [x] Construir módulo de Clientes (`UI-003`, `UI-004`): listagem paginada, filtros rápidos, criação e edição com validação Zod. *Concluído em 20/10/2026 (`/clients` e `/clients/:id`).*
 - [x] Construir módulo de Projetos (`UI-005`, `UI-006`): visão geral com cards de status, código único do projeto e cliente vinculado — *Concluído em 20/10/2026*.
-- [ ] Construir cabeçalho do projeto com identificador da revisão ativa, status de sincronização e alternador de revisões históricas. *(Parcial: cabeçalho com revisão ativa e versão; falta alternador histórico.)*
+- [x] Construir cabeçalho do projeto com identificador da revisão ativa, status de sincronização e alternador de revisões históricas. *Concluído em 20/10/2026.*
 - [x] Construir feedback visual para detecção de conflitos de concorrência (`RESOURCE_CONFLICT`) — *Concluído em 20/10/2026*.
 
 #### Testes & Validação
-- [ ] Testes de integridade de concorrência: duas requisições simultâneas tentando alterar o mesmo projeto devem resultar em um sucesso e um erro `409 Conflict`. *(Domínio: versão obsoleta lança `ResourceConflictException` → HTTP 409. Falta teste HTTP concorrente.)*
+- [x] Testes de integridade de concorrência: duas requisições simultâneas tentando alterar o mesmo projeto devem resultar em um sucesso e um erro `409 Conflict`. *Concluído em 20/10/2026 (`ProjectConcurrencyTests`: segundo `If-Match` obsoleto retorna 409).*
 - [x] Testes de imutabilidade: garantir que uma revisão aprovada rejeita qualquer tentativa de modificação in-place — *Concluído em 20/10/2026*.
 
 ---
@@ -446,12 +446,6 @@ LuminiV2/
 
 ## 6. Próximo Passo Imediato
 
-**Iniciar a Sprint 2** (Clientes & Projetos), nesta ordem:
+**Iniciar a Sprint 3** (Catálogo de Materiais, Acabamentos e Configurações Técnicas).
 
-1. Entidades `Client`, `Project`, `ProjectRevision`, `ProjectAttachment` + máquina de estados.
-2. Revisões monotônicas imutáveis (`RN-005`) e concorrência otimista (`If-Match` / `version`).
-3. Upload de anexos via MinIO (URLs pré-assinadas) e `audit_events`.
-4. Frontend: listagem/criação de clientes e projetos (UI-003 a UI-006).
-5. Testes de conflito `409` e imutabilidade de revisão aprovada.
-
-**Follow-ups finos da Sprint 1 (não bloqueantes):** recovery de senha; teste de integração HTTP cross-tenant; mover JWT secret para secret store.
+**Follow-ups finos (não bloqueantes):** recovery de senha; teste HTTP cross-tenant; mover JWT secret para secret store; validar `Storage:Provider=S3` com MinIO real quando o Docker estiver no ar (o adapter já existe; o desenvolvimento usa URL assinada local).

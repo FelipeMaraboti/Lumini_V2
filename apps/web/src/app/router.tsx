@@ -6,6 +6,7 @@ import { RequireAuth } from '@/features/auth/RequireAuth';
 import { MembersPage } from '@/features/auth/MembersPage';
 import { RolesPage } from '@/features/auth/RolesPage';
 import { ClientsPage } from '@/features/clients/ClientsPage';
+import { ClientPage } from '@/features/clients/ClientPage';
 import { ProjectsPage } from '@/features/projects/ProjectsPage';
 import { ProjectPage } from '@/features/projects/ProjectPage';
 
@@ -20,6 +21,7 @@ export function AppRouter() {
           <Route path="/" element={<App />} />
           <Route element={<RequireAuth permission="clients.read" />}>
             <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/clients/:id" element={<ClientPage />} />
           </Route>
           <Route element={<RequireAuth permission="projects.read" />}>
             <Route path="/projects" element={<ProjectsPage />} />

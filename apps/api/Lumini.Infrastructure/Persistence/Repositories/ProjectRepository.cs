@@ -1,5 +1,6 @@
 using Lumini.Application.Common.Interfaces;
 using Lumini.Domain.Audit;
+using Lumini.Domain.Common;
 using Lumini.Domain.Projects;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,9 +44,11 @@ public class ProjectRepository : IProjectRepository
     public Task<Project?> GetProjectAsync(Guid tenantId, Guid projectId, CancellationToken ct = default) =>
         _context.Projects.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == projectId, ct);
 
-    public async Task<(IReadOnlyList<Project> Items, int Total)> ListProjectsAsync(Guid tenantId, string? search, int page, int pageSize, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<Project> Items, int Total)> ListProjectsAsync(Guid tenantId, string? search, Guid? clientId, int page, int pageSize, CancellationToken ct = default)
     {
         var query = _context.Projects.IgnoreQueryFilters().Where(p => p.TenantId == tenantId);
+        if (clientId.HasValue)
+            query = query.Where(p => p.ClientId == clientId.Value);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLowerInvariant();
@@ -87,6 +90,15 @@ public class ProjectRepository : IProjectRepository
     public Task AddAuditAsync(AuditEvent auditEvent, CancellationToken ct = default) =>
         _context.AuditEvents.AddAsync(auditEvent, ct).AsTask();
 
-    public Task<int> SaveChangesAsync(CancellationToken ct = default) =>
-        _context.SaveChangesAsync(ct);
+    public async Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            return await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ResourceConflictException(0);
+        }
+    }
 }

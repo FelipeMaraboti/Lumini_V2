@@ -52,6 +52,8 @@ public record RevisionResponse(
 
 public record ReplaceSnapshotRequest(string SnapshotJson);
 
+public record DownloadUrlResponse(string Url, DateTime ExpiresAtUtc);
+
 public record AttachmentResponse(
     Guid Id,
     Guid ProjectId,

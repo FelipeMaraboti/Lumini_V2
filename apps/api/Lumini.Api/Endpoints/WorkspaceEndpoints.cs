@@ -17,8 +17,12 @@ public static class WorkspaceEndpoints
             return Results.Ok(result);
         }).RequireAuthorization(AuthorizationPolicies.For(Permissions.ClientsRead));
 
-        clients.MapGet("/{id:guid}", async (Guid id, IWorkspaceService service, CancellationToken ct) =>
-            Results.Ok(await service.GetClientAsync(id, ct)))
+        clients.MapGet("/{id:guid}", async (Guid id, IWorkspaceService service, HttpContext http, CancellationToken ct) =>
+        {
+            var client = await service.GetClientAsync(id, ct);
+            http.Response.Headers.ETag = Quote(client.Version);
+            return Results.Ok(client);
+        })
             .RequireAuthorization(AuthorizationPolicies.For(Permissions.ClientsRead));
 
         clients.MapPost("/", async (UpsertClientRequest request, IWorkspaceService service, HttpContext http, CancellationToken ct) =>
@@ -36,8 +40,8 @@ public static class WorkspaceEndpoints
 
         var projects = api.MapGroup("/projects").WithTags("Projetos").RequireAuthorization();
 
-        projects.MapGet("/", async (string? search, int? page, int? pageSize, IWorkspaceService service, CancellationToken ct) =>
-            Results.Ok(await service.ListProjectsAsync(search, page ?? 1, pageSize ?? 20, ct)))
+        projects.MapGet("/", async (string? search, Guid? clientId, int? page, int? pageSize, IWorkspaceService service, CancellationToken ct) =>
+            Results.Ok(await service.ListProjectsAsync(search, clientId, page ?? 1, pageSize ?? 20, ct)))
             .RequireAuthorization(AuthorizationPolicies.For(Permissions.ProjectsRead));
 
         projects.MapGet("/{id:guid}", async (Guid id, IWorkspaceService service, HttpContext http, CancellationToken ct) =>
@@ -91,6 +95,10 @@ public static class WorkspaceEndpoints
             var saved = await service.AddAttachmentAsync(id, file.FileName, file.ContentType, stream, ct);
             return Results.Created($"/api/v1/projects/attachments/{saved.Id}", saved);
         }).RequireAuthorization(AuthorizationPolicies.For(Permissions.ProjectsEdit)).DisableAntiforgery();
+
+        projects.MapPost("/attachments/{attachmentId:guid}/download-url", async (Guid attachmentId, IWorkspaceService service, CancellationToken ct) =>
+            Results.Ok(await service.CreateAttachmentDownloadUrlAsync(attachmentId, ct)))
+            .RequireAuthorization(AuthorizationPolicies.For(Permissions.ProjectsRead));
 
         projects.MapGet("/attachments/{attachmentId:guid}", async (Guid attachmentId, IWorkspaceService service, CancellationToken ct) =>
         {

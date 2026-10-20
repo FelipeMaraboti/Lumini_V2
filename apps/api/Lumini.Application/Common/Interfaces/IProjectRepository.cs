@@ -12,7 +12,7 @@ public interface IProjectRepository
 
     Task AddProjectAsync(Project project, CancellationToken ct = default);
     Task<Project?> GetProjectAsync(Guid tenantId, Guid projectId, CancellationToken ct = default);
-    Task<(IReadOnlyList<Project> Items, int Total)> ListProjectsAsync(Guid tenantId, string? search, int page, int pageSize, CancellationToken ct = default);
+    Task<(IReadOnlyList<Project> Items, int Total)> ListProjectsAsync(Guid tenantId, string? search, Guid? clientId, int page, int pageSize, CancellationToken ct = default);
     Task<bool> ProjectCodeExistsAsync(Guid tenantId, string code, CancellationToken ct = default);
 
     Task AddRevisionAsync(ProjectRevision revision, CancellationToken ct = default);

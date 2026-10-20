@@ -13,6 +13,13 @@ interface Project {
   version: number;
 }
 
+interface Revision {
+  id: string;
+  revisionNumber: number;
+  status: string;
+  snapshotJson: string;
+}
+
 const NEXT: Record<string, string | undefined> = {
   Draft: 'InReview',
   InReview: 'Approved',
@@ -25,14 +32,22 @@ export function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [etag, setEtag] = useState<string | undefined>();
   const [name, setName] = useState('');
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [selectedRevisionId, setSelectedRevisionId] = useState<string>('');
   const [conflict, setConflict] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const response = await apiRequest<Project>(`/projects/${id}`);
+    const [response, revisionRes] = await Promise.all([
+      apiRequest<Project>(`/projects/${id}`),
+      apiRequest<Revision[]>(`/projects/${id}/revisions`),
+    ]);
     setProject(response.data);
     setName(response.data.name);
     setEtag(response.etag ?? String(response.data.version));
+    setRevisions(revisionRes.data);
+    const current = revisionRes.data.find((revision) => revision.revisionNumber === response.data.revisionNumber);
+    setSelectedRevisionId(current?.id ?? revisionRes.data[0]?.id ?? '');
     setConflict(null);
   }
 
@@ -91,6 +106,8 @@ export function ProjectPage() {
     return <div className="p-6 text-sm text-muted-foreground">{error ?? 'Carregando…'}</div>;
   }
 
+  const selected = revisions.find((revision) => revision.id === selectedRevisionId);
+
   return (
     <div className="min-h-screen bg-background p-6 text-foreground">
       <div className="mx-auto max-w-3xl space-y-5">
@@ -105,8 +122,32 @@ export function ProjectPage() {
             <p className="font-semibold">{project.status}</p>
             <p>REV {project.revisionNumber ?? '—'} · {project.revisionStatus ?? '—'}</p>
             <p className="text-muted-foreground">versão {project.version}</p>
+            <p className={name === project.name ? 'text-emerald-500' : 'text-amber-500'}>
+              {name === project.name ? 'Sincronizado' : 'Alterações pendentes'}
+            </p>
           </div>
         </header>
+
+        <label className="block text-xs text-muted-foreground">
+          Revisão
+          <select
+            value={selectedRevisionId}
+            onChange={(e) => setSelectedRevisionId(e.target.value)}
+            className="mt-1 h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground"
+          >
+            {revisions.map((revision) => (
+              <option key={revision.id} value={revision.id}>
+                REV {revision.revisionNumber} · {revision.status}
+                {revision.revisionNumber === project.revisionNumber ? ' · atual' : ' · histórica'}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selected && (
+          <pre className="overflow-auto rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+            {selected.snapshotJson}
+          </pre>
+        )}
 
         {conflict && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">

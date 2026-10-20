@@ -15,7 +15,7 @@ public interface IWorkspaceService
     Task<ClientResponse> UpdateClientAsync(Guid clientId, UpsertClientRequest request, uint expectedVersion, string? correlationId, CancellationToken ct = default);
 
     Task<ProjectResponse> CreateProjectAsync(CreateProjectRequest request, string? correlationId, CancellationToken ct = default);
-    Task<PagedResponse<ProjectResponse>> ListProjectsAsync(string? search, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResponse<ProjectResponse>> ListProjectsAsync(string? search, Guid? clientId, int page, int pageSize, CancellationToken ct = default);
     Task<ProjectResponse> GetProjectAsync(Guid projectId, CancellationToken ct = default);
     Task<ProjectResponse> UpdateProjectAsync(Guid projectId, UpdateProjectRequest request, uint expectedVersion, string? correlationId, CancellationToken ct = default);
     Task<ProjectResponse> TransitionAsync(Guid projectId, string targetStatus, uint expectedVersion, string? correlationId, CancellationToken ct = default);
@@ -25,6 +25,7 @@ public interface IWorkspaceService
 
     Task<AttachmentResponse> AddAttachmentAsync(Guid projectId, string fileName, string contentType, Stream content, CancellationToken ct = default);
     Task<(ProjectAttachment Meta, Stream Content)> OpenAttachmentAsync(Guid attachmentId, CancellationToken ct = default);
+    Task<DownloadUrlResponse> CreateAttachmentDownloadUrlAsync(Guid attachmentId, CancellationToken ct = default);
 }
 
 public class WorkspaceService : IWorkspaceService
@@ -101,10 +102,10 @@ public class WorkspaceService : IWorkspaceService
         return Map(project, client.Name, revision);
     }
 
-    public async Task<PagedResponse<ProjectResponse>> ListProjectsAsync(string? search, int page, int pageSize, CancellationToken ct = default)
+    public async Task<PagedResponse<ProjectResponse>> ListProjectsAsync(string? search, Guid? clientId, int page, int pageSize, CancellationToken ct = default)
     {
         var tenantId = _tenant.RequiredTenantId;
-        var (items, total) = await _repository.ListProjectsAsync(tenantId, search, NormalizePage(page), NormalizePageSize(pageSize), ct);
+        var (items, total) = await _repository.ListProjectsAsync(tenantId, search, clientId, NormalizePage(page), NormalizePageSize(pageSize), ct);
         var mapped = new List<ProjectResponse>();
         foreach (var project in items)
         {
@@ -212,6 +213,15 @@ public class WorkspaceService : IWorkspaceService
 
         var stream = await _storage.OpenReadAsync(attachment.ObjectKey, ct);
         return (attachment, stream);
+    }
+
+    public async Task<DownloadUrlResponse> CreateAttachmentDownloadUrlAsync(Guid attachmentId, CancellationToken ct = default)
+    {
+        var attachment = await _repository.GetAttachmentAsync(_tenant.RequiredTenantId, attachmentId, ct)
+            ?? throw new KeyNotFoundException("Anexo não encontrado.");
+
+        var link = await _storage.CreateDownloadUrlAsync(attachment.ObjectKey, TimeSpan.FromMinutes(15), ct);
+        return new DownloadUrlResponse(link.Url, link.ExpiresAtUtc);
     }
 
     private async Task<Client> RequireClientAsync(Guid clientId, CancellationToken ct)

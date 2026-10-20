@@ -39,7 +39,8 @@ builder.Services.AddDbContext<LuminiDbContext>(options =>
 {
     if (useSqliteFallback)
     {
-        options.UseSqlite("Data Source=lumini_dev.db");
+        var sqliteConnection = builder.Configuration.GetConnectionString("Sqlite") ?? "Data Source=lumini_dev.db";
+        options.UseSqlite(sqliteConnection);
     }
     else
     {
@@ -54,8 +55,22 @@ builder.Services.AddScoped<IUserContext, UserContext>();
 builder.Services.AddScoped<IIdentityRepository, Lumini.Infrastructure.Persistence.Repositories.IdentityRepository>();
 builder.Services.AddScoped<IProjectRepository, Lumini.Infrastructure.Persistence.Repositories.ProjectRepository>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
-builder.Services.AddSingleton<IFileStorage>(_ =>
-    new LocalFileStorage(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "uploads")));
+var storageProvider = builder.Configuration["Storage:Provider"] ?? "Local";
+if (storageProvider.Equals("S3", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IFileStorage>(_ => new S3FileStorage(
+        builder.Configuration["Storage:ServiceUrl"] ?? "http://localhost:9000",
+        builder.Configuration["Storage:AccessKey"] ?? "lumini_minio_admin",
+        builder.Configuration["Storage:SecretKey"] ?? "lumini_minio_secret_2026",
+        builder.Configuration["Storage:Bucket"] ?? "lumini-attachments"));
+}
+else
+{
+    builder.Services.AddSingleton<IFileStorage>(_ => new LocalFileStorage(
+        Path.Combine(builder.Environment.ContentRootPath, "App_Data", "uploads"),
+        builder.Configuration["Storage:PublicBaseUrl"] ?? "http://localhost:5000",
+        builder.Configuration["Storage:SigningKey"] ?? jwtSecretKey));
+}
 builder.Services.AddSingleton<IPasswordHasher, PasswordHasher>();
 builder.Services.AddSingleton<ITokenHasher, TokenHasher>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();
@@ -302,6 +317,15 @@ rolesGroup.MapPost("/", async (CreateRoleRequest request, IAuthService authServi
 .WithName("CreateRole");
 
 api.MapWorkspaceEndpoints();
+
+api.MapGet("/files/{token}", async (string token, IFileStorage storage, CancellationToken ct) =>
+{
+    if (storage is not LocalFileStorage local || !local.TryReadSignedToken(Uri.UnescapeDataString(token), out var objectKey))
+        return Results.NotFound();
+
+    var stream = await local.OpenReadAsync(objectKey, ct);
+    return Results.File(stream, "application/octet-stream", Path.GetFileName(objectKey));
+}).WithTags("Arquivos").AllowAnonymous();
 
 app.Run();
 
