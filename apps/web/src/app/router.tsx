@@ -9,6 +9,7 @@ import { ClientsPage } from '@/features/clients/ClientsPage';
 import { ClientPage } from '@/features/clients/ClientPage';
 import { ProjectsPage } from '@/features/projects/ProjectsPage';
 import { ProjectPage } from '@/features/projects/ProjectPage';
+import { CatalogPage } from '@/features/catalog/CatalogPage';
 
 export function AppRouter() {
   return (
@@ -32,6 +33,9 @@ export function AppRouter() {
           </Route>
           <Route element={<RequireAuth permission="roles.read" />}>
             <Route path="/settings/roles" element={<RolesPage />} />
+          </Route>
+          <Route element={<RequireAuth permission="pricing.read" />}>
+            <Route path="/settings/catalog" element={<CatalogPage />} />
           </Route>
         </Route>
 

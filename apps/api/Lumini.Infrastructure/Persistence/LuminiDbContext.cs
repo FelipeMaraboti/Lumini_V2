@@ -1,5 +1,7 @@
+using System.Globalization;
 using Lumini.Application.Common.Interfaces;
 using Lumini.Domain.Audit;
+using Lumini.Domain.Catalog;
 using Lumini.Domain.Common;
 using Lumini.Domain.Identity;
 using Lumini.Domain.Projects;
@@ -28,6 +30,10 @@ public class LuminiDbContext : DbContext
     public DbSet<ProjectRevision> ProjectRevisions => Set<ProjectRevision>();
     public DbSet<ProjectAttachment> ProjectAttachments => Set<ProjectAttachment>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<Material> Materials => Set<Material>();
+    public DbSet<FinishType> FinishTypes => Set<FinishType>();
+    public DbSet<PricingTable> PricingTables => Set<PricingTable>();
+    public DbSet<PricingRule> PricingRules => Set<PricingRule>();
 
     public LuminiDbContext(DbContextOptions<LuminiDbContext> options, ITenantContext? tenantContext = null)
         : base(options)
@@ -169,6 +175,59 @@ public class LuminiDbContext : DbContext
             entity.Property(a => a.MetadataJson).IsRequired();
         });
 
+        modelBuilder.Entity<Material>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+            entity.HasIndex(m => new { m.TenantId, m.Name }).IsUnique();
+            entity.Property(m => m.Name).HasMaxLength(150).IsRequired();
+            entity.Property(m => m.ColorHex).HasMaxLength(7).IsRequired();
+            entity.Property(m => m.TextureName).HasMaxLength(80);
+            entity.Property(m => m.DensityKgPerM3).HasPrecision(8, 3);
+            entity.Property(m => m.Version).IsConcurrencyToken();
+
+            var thicknessComparer = new ValueComparer<IReadOnlyCollection<decimal>>(
+                (a, b) => (a ?? Array.Empty<decimal>()).SequenceEqual(b ?? Array.Empty<decimal>()),
+                v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+                v => v.ToList());
+
+            entity.Property(m => m.ThicknessesMm)
+                .HasConversion(
+                    v => string.Join(';', v.Select(t => t.ToString(CultureInfo.InvariantCulture))),
+                    v => (IReadOnlyCollection<decimal>)v.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(part => decimal.Parse(part, CultureInfo.InvariantCulture))
+                        .ToList())
+                .Metadata.SetValueComparer(thicknessComparer);
+        });
+
+        modelBuilder.Entity<FinishType>(entity =>
+        {
+            entity.HasKey(f => f.Id);
+            entity.HasIndex(f => new { f.TenantId, f.Code }).IsUnique();
+            entity.Property(f => f.Code).HasMaxLength(60).IsRequired();
+            entity.Property(f => f.Name).HasMaxLength(120).IsRequired();
+            entity.Property(f => f.Description).HasMaxLength(500).IsRequired();
+            entity.Property(f => f.Profile).HasMaxLength(40).IsRequired();
+            entity.Property(f => f.MinSlabThicknessMm).HasPrecision(6, 1);
+            entity.Property(f => f.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<PricingTable>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+            entity.HasIndex(t => new { t.TenantId, t.Name }).IsUnique();
+            entity.Property(t => t.Name).HasMaxLength(120).IsRequired();
+            entity.Property(t => t.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(t => t.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<PricingRule>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.HasIndex(r => new { r.TenantId, r.PricingTableId });
+            entity.Property(r => r.UnitPrice).HasPrecision(18, 2);
+            entity.Property(r => r.Version).IsConcurrencyToken();
+        });
+
         // Query filter dinâmico: CurrentTenantId é lido a cada query (não capturado em Constant)
         modelBuilder.Entity<Role>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Client>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
@@ -178,6 +237,10 @@ public class LuminiDbContext : DbContext
         modelBuilder.Entity<AuditEvent>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Membership>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Invitation>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Material>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<FinishType>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<PricingTable>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<PricingRule>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

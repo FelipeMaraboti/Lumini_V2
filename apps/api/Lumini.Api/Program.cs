@@ -5,6 +5,7 @@ using Lumini.Api.Authorization;
 using Lumini.Api.Endpoints;
 using Lumini.Api.Middlewares;
 using Lumini.Api.Services;
+using Lumini.Application.Catalog.Services;
 using Lumini.Application.Common.Interfaces;
 using Lumini.Application.Identity.Authorization;
 using Lumini.Application.Identity.DTOs;
@@ -54,7 +55,9 @@ builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<IUserContext, UserContext>();
 builder.Services.AddScoped<IIdentityRepository, Lumini.Infrastructure.Persistence.Repositories.IdentityRepository>();
 builder.Services.AddScoped<IProjectRepository, Lumini.Infrastructure.Persistence.Repositories.ProjectRepository>();
+builder.Services.AddScoped<ICatalogRepository, Lumini.Infrastructure.Persistence.Repositories.CatalogRepository>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
+builder.Services.AddScoped<ICatalogService, CatalogService>();
 var storageProvider = builder.Configuration["Storage:Provider"] ?? "Local";
 if (storageProvider.Equals("S3", StringComparison.OrdinalIgnoreCase))
 {
@@ -175,6 +178,12 @@ if (app.Environment.IsDevelopment())
             }
 
             await db.Database.EnsureCreatedAsync();
+            if (!await SchemaHasTableAsync(db, "Materials"))
+            {
+                await ApplyCatalogTablesAsync(db);
+                app.Logger.LogWarning("Tabelas do catálogo técnico criadas no SQLite de desenvolvimento.");
+            }
+
             app.Logger.LogWarning("Usando SQLite de desenvolvimento (lumini_dev.db). Suba o PostgreSQL via docker-compose para o ambiente canônico.");
         }
         else
@@ -317,6 +326,7 @@ rolesGroup.MapPost("/", async (CreateRoleRequest request, IAuthService authServi
 .WithName("CreateRole");
 
 api.MapWorkspaceEndpoints();
+api.MapCatalogEndpoints();
 
 api.MapGet("/files/{token}", async (string token, IFileStorage storage, CancellationToken ct) =>
 {
@@ -339,6 +349,103 @@ static async Task<bool> SchemaHasClientsAsync(LuminiDbContext db)
     catch
     {
         return false;
+    }
+}
+
+static async Task<bool> SchemaHasTableAsync(LuminiDbContext db, string table)
+{
+    var connection = db.Database.GetDbConnection();
+    var openedHere = connection.State != System.Data.ConnectionState.Open;
+    if (openedHere)
+        await connection.OpenAsync();
+
+    try
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $name";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "$name";
+        parameter.Value = table;
+        command.Parameters.Add(parameter);
+        var found = await command.ExecuteScalarAsync();
+        return found is not null;
+    }
+    finally
+    {
+        if (openedHere)
+            await connection.CloseAsync();
+    }
+}
+
+static async Task ApplyCatalogTablesAsync(LuminiDbContext db)
+{
+    const string sql = """
+        CREATE TABLE IF NOT EXISTS "Materials" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_Materials" PRIMARY KEY,
+            "ColorHex" TEXT NOT NULL,
+            "CreatedAtUtc" TEXT NOT NULL,
+            "DensityKgPerM3" TEXT NOT NULL,
+            "Name" TEXT NOT NULL,
+            "RockKind" INTEGER NOT NULL,
+            "Status" INTEGER NOT NULL,
+            "TenantId" TEXT NOT NULL,
+            "TextureName" TEXT NULL,
+            "ThicknessesMm" TEXT NOT NULL,
+            "UpdatedAtUtc" TEXT NULL,
+            "Version" INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Materials_TenantId_Name" ON "Materials" ("TenantId", "Name");
+
+        CREATE TABLE IF NOT EXISTS "FinishTypes" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_FinishTypes" PRIMARY KEY,
+            "Code" TEXT NOT NULL,
+            "CreatedAtUtc" TEXT NOT NULL,
+            "Description" TEXT NOT NULL,
+            "IsSystem" INTEGER NOT NULL,
+            "MinSlabThicknessMm" TEXT NOT NULL,
+            "Name" TEXT NOT NULL,
+            "Profile" TEXT NOT NULL,
+            "Status" INTEGER NOT NULL,
+            "TenantId" TEXT NOT NULL,
+            "UpdatedAtUtc" TEXT NULL,
+            "Version" INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_FinishTypes_TenantId_Code" ON "FinishTypes" ("TenantId", "Code");
+
+        CREATE TABLE IF NOT EXISTS "PricingTables" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_PricingTables" PRIMARY KEY,
+            "CreatedAtUtc" TEXT NOT NULL,
+            "Currency" TEXT NOT NULL,
+            "IsDefault" INTEGER NOT NULL,
+            "Name" TEXT NOT NULL,
+            "Status" INTEGER NOT NULL,
+            "TenantId" TEXT NOT NULL,
+            "UpdatedAtUtc" TEXT NULL,
+            "Version" INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_PricingTables_TenantId_Name" ON "PricingTables" ("TenantId", "Name");
+
+        CREATE TABLE IF NOT EXISTS "PricingRules" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_PricingRules" PRIMARY KEY,
+            "Basis" INTEGER NOT NULL,
+            "CreatedAtUtc" TEXT NOT NULL,
+            "FinishTypeId" TEXT NULL,
+            "MaterialId" TEXT NULL,
+            "PricingTableId" TEXT NOT NULL,
+            "TenantId" TEXT NOT NULL,
+            "UnitPrice" TEXT NOT NULL,
+            "UpdatedAtUtc" TEXT NULL,
+            "Version" INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_PricingRules_TenantId_PricingTableId" ON "PricingRules" ("TenantId", "PricingTableId");
+        """;
+
+    foreach (var statement in sql.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        if (statement.Length == 0)
+            continue;
+
+        await db.Database.ExecuteSqlRawAsync(statement);
     }
 }
 

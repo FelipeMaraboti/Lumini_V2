@@ -207,21 +207,23 @@ LuminiV2/
 
 ### Sprint 3: Catálogo de Materiais, Acabamentos e Configurações Técnicas
 **Meta:** Configurar a base técnica que sustenta o desenho e a fabricação: catálogo de rochas (mármores, granitos, quartzitos), espessuras nominais, acabamentos de borda e regras de fabricação.
+**Status:** **CONCLUÍDA em 20/10/2026** — catálogo por marmoraria, seed de acabamentos, compatibilidade de espessura e preços em decimal.
 
 #### Backend
-- [ ] Criar entidades: `Material` (nome, tipo de rocha, densidade, espessuras disponíveis, textura/cor), `FinishType` (código, nome, parâmetros de corte), `PricingTable`, `PricingRule`.
-- [ ] Seed inicial de acabamentos tradicionais de marmoraria:
+- [x] Criar entidades: `Material` (nome, tipo de rocha, densidade, espessuras disponíveis, textura/cor), `FinishType` (código, nome, parâmetros de corte), `PricingTable`, `PricingRule`. *Concluído em 20/10/2026.*
+- [x] Seed inicial de acabamentos tradicionais de marmoraria:
   - Rebaixo italiano e rebaixo americano;
   - Meia-esquadria 45° (com e sem saia colada);
   - Borda boleada, meia-cana, bisotê reto e polimento simples;
   - Engrosso / saia colada.
-- [ ] Implementar validação de regras de compatibilidade: espessura mínima de chapa por tipo de acabamento.
-- [ ] Endpoints para CRUD do catálogo com escopo por marmoraria.
+  *Concluído em 20/10/2026, por tenant, na primeira leitura do catálogo.*
+- [x] Implementar validação de regras de compatibilidade: espessura mínima de chapa por tipo de acabamento. *Concluído em 20/10/2026. Meia-cana exige 30 mm.*
+- [x] Endpoints para CRUD do catálogo com escopo por marmoraria. *Concluído em 20/10/2026 (`/api/v1/catalog`).*
 
 #### Frontend
-- [ ] Construir tela de configurações de Materiais e Acabamentos (`Configurações Técnicas`).
-- [ ] Criar seletor visual de materiais com amostras de cor/textura e espessuras suportadas (ex: 20mm, 30mm).
-- [ ] Criar painel visual explicativo com ilustrações dos acabamentos de borda e suas terminologias de fábrica.
+- [x] Construir tela de configurações de Materiais e Acabamentos (`Configurações Técnicas`). *Concluído em 20/10/2026 (`/settings/catalog`).*
+- [x] Criar seletor visual de materiais com amostras de cor/textura e espessuras suportadas (ex: 20mm, 30mm). *Concluído em 20/10/2026.*
+- [x] Criar painel visual explicativo com ilustrações dos acabamentos de borda e suas terminologias de fábrica. *Concluído em 20/10/2026.*
 
 ---
 
@@ -446,6 +448,6 @@ LuminiV2/
 
 ## 6. Próximo Passo Imediato
 
-**Iniciar a Sprint 3** (Catálogo de Materiais, Acabamentos e Configurações Técnicas).
+**Iniciar a Sprint 4** (Motor de Geometria e Editor 2D em milímetros).
 
 **Follow-ups finos (não bloqueantes):** recovery de senha; teste HTTP cross-tenant; mover JWT secret para secret store; validar `Storage:Provider=S3` com MinIO real quando o Docker estiver no ar (o adapter já existe; o desenvolvimento usa URL assinada local).

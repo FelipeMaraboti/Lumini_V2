@@ -36,3 +36,22 @@ public enum RevisionStatus
     Draft = 1,
     Approved = 2
 }
+
+public enum RockKind
+{
+    Marble = 1,
+    Granite = 2,
+    Quartzite = 3
+}
+
+public enum PriceBasis
+{
+    SquareMeter = 1,
+    LinearMeter = 2
+}
+
+public enum CatalogStatus
+{
+    Active = 1,
+    Archived = 2
+}

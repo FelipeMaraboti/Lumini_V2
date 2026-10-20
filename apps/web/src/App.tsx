@@ -13,7 +13,8 @@ import {
   Users,
   ShieldCheck,
   Buildings,
-  Folder
+  Folder,
+  Palette
 } from '@phosphor-icons/react';
 import type { Part, EdgeSegment, Hole } from '@lumini/geometry-core';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -175,6 +176,12 @@ export default function App() {
               <Link to="/projects" className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent">
                 <Folder size={18} />
                 <span>Projetos</span>
+              </Link>
+            )}
+            {hasAnyPermission('pricing.read', 'organization.manage') && (
+              <Link to="/settings/catalog" className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent">
+                <Palette size={18} />
+                <span>Configurações técnicas</span>
               </Link>
             )}
             <button 
