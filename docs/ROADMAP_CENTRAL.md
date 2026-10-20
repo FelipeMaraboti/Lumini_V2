@@ -2,7 +2,7 @@
 
 **Versão do Documento:** 1.0  
 **Data:** 19/10/2026  
-**Status do Projeto:** Sprint 0 concluída · Sprint 1 substancialmente concluída (auth/RBAC/UI)  
+**Status do Projeto:** Sprints 0 a 3 concluídas · Sprint 4 em andamento (editor 2D) · Sprint 5 em andamento (montagem 3D)  
 **Referência Arquitetural:** `Lumini_Arquitetura_Completa/` (00 a 10) e `docs/PRODUCT_VISION.md`  
 **Governança:** `AGENTS.md`  
 
@@ -229,48 +229,50 @@ LuminiV2/
 
 ### Sprint 4: Motor de Geometria e Editor 2D (CAD Especializado)
 **Meta:** Desenvolver o núcleo do editor de desenho técnico em milímetros (`mm`), permitindo modelar bancadas, ilhas, frontões, saias, recortes de cuba e furos com precisão cirúrgica e cotas automáticas (`RF-005`, `RF-006`, `RF-008`).
+**Status:** **EM ANDAMENTO em 20/10/2026** — modelo, validação, canvas, cotas, acabamento por aresta e desfazer estão no ar. Faltam cuba oval, polígono livre, autosave e o teste de 50 peças.
 
 #### Motor Geométrico Canônico (`packages/geometry-core`)
-- [ ] Implementar estruturas de dados geométricas canônicas em milímetros:
+- [x] Implementar estruturas de dados geométricas canônicas em milímetros: *Concluído em 20/10/2026 (`packages/geometry-core/src/index.ts`).*
   - `Part`: contorno externo, espessura nominal, material associado;
   - `Edge`: aresta com identificador único, comprimento exato e acabamento aplicado;
   - `Hole`: centro (`x`, `y`) e diâmetro em mm (`RN-003`), raio derivado;
   - `InnerContour`: recortes internos para cubas de sobrepor ou embutir;
   - `DimensionAnnotation`: cota técnica independente da geometria canônica.
-- [ ] Implementar algoritmos de validação geométrica:
+- [x] Implementar algoritmos de validação geométrica: *Concluído em 20/10/2026 (`edit.ts`, `edit.test.ts`).*
   - Detecção de auto-interseção de polígonos;
   - Garantia de que furos e recortes estão contidos dentro da peça com margem mínima de segurança da borda;
   - Cálculo de área líquida e área bruta retangular.
 
 #### Frontend — Editor Canvas 2D (`apps/web/src/editor2d`)
-- [ ] Canvas interativo com suporte a pan, zoom fluido e grid milimétrico com snap magnético.
+- [x] Canvas interativo com suporte a pan, zoom fluido e grid milimétrico com snap magnético. *Concluído em 20/10/2026. Snap de 5 mm; a grade cobre o canvas sem esticar a peça.*
 - [ ] Ferramentas de desenho:
-  - Retângulo paramétrico (largura x comprimento);
-  - Polígono livre em L ou U (bancadas com retorno);
-  - Inserção de furos por diâmetro numérico (ex: furo de 35mm para torneira mono-comando);
-  - Recorte de cubas retangulares e ovais com folga de colagem.
+  - [x] Retângulo paramétrico (largura x comprimento);
+  - [ ] Polígono livre em L ou U (bancadas com retorno). *Em L paramétrico pronto; contorno livre pendente.*
+  - [x] Inserção de furos por diâmetro numérico (ex: furo de 35mm para torneira mono-comando);
+  - [ ] Recorte de cubas retangulares e ovais com folga de colagem. *Cuba retangular pronta; oval pendente.*
 - [x] Sistema de cotas dinâmicas: cotas automáticas exibidas nas arestas com opção de reposicionamento e ocultação.
-- [ ] Painel lateral contextual:
+- [x] Painel lateral contextual: *Concluído em 20/10/2026.*
   - Seleção de borda da peça com aplicação de acabamento específico (ex: Borda frontal com 45° + saia de 40mm);
   - Destaque bidirecional: ao clicar na aresta no canvas, o painel foca na borda correspondente.
-- [ ] Sistema de Undo / Redo baseado no padrão Command sobre o estado geométrico.
+- [x] Sistema de Undo / Redo baseado no padrão Command sobre o estado geométrico. *Concluído em 20/10/2026. Pilha de snapshots, botões e Ctrl+Z / Ctrl+Y.*
 - [ ] Mecanismo de Autosave local em IndexedDB com sincronização periódica de rascunho no backend (`RF-015`).
 
 #### Testes & Validação
-- [ ] Testes unitários do motor geométrico: precisão de cálculos de área, tolerâncias decimais e validação de furos fora do limite da pedra.
+- [x] Testes unitários do motor geométrico: precisão de cálculos de área, tolerâncias decimais e validação de furos fora do limite da pedra. *Concluído em 20/10/2026 (`packages/geometry-core/edit.test.ts`).*
 - [ ] Teste de performance do canvas 2D com projetos contendo mais de 50 peças simultâneas.
 
 ---
 
 ### Sprint 5: Visualizador 3D e Modelagem de Montagem
 **Meta:** Proporcionar inspeção tridimensional realista das peças de pedra com Three.js / React Three Fiber, permitindo conferir encaixes de saias 45°, frontões e cubas esculpidas em rocha (`RF-023`).
+**Status:** **EM ANDAMENTO em 20/10/2026** — as três peças do desenho entram na montagem. Faltam biblioteca PBR, régua confirmada na pedra e captura para PDF.
 
 #### Frontend — Viewport 3D (`apps/web/src/editor3d`)
 - [x] Cena Three.js sincronizada em tempo real com o modelo geométrico canônico da Sprint 4. *Concluído em 20/10/2026. O botão 3D usa o mesmo estado do desenho.*
 - [x] Extrusão paramétrica das peças 2D respeitando a espessura da chapa cadastrada (ex: 20mm). *Concluído em 20/10/2026.*
-- [ ] Shaders/materiais PBR representando granitos, mármores e acabamentos polidos/escovados.
-- [x] Montagem tridimensional: posicionamento relativo de saias a 45° descendo da bancada e frontões subindo na parede. *Concluído em 20/10/2026. A saia desce 40 mm a partir da face de baixo e encontra o 45° sem volume em comum; o frontão sobe 150 mm apoiado no fundo.*
-- [ ] Ferramenta de inspeção e medição 3D (régua virtual para conferência de medidas de montagem).
+- [ ] Shaders/materiais PBR representando granitos, mármores e acabamentos polidos/escovados. *Parcial: quartzito Calacatta procedural e rugosidade polido/escovado. Falta o catálogo de rochas.*
+- [x] Montagem tridimensional: posicionamento relativo de saias a 45° descendo da bancada e frontões subindo na parede. *Concluído em 20/10/2026. FR-01, BC-01 e SA-01 ocupam a cena. O 45° é um chanfro reto; a SA-01 desce 40 mm da face de baixo e encontra o corte sem volume em comum. O frontão sobe 150 mm no fundo.*
+- [ ] Ferramenta de inspeção e medição 3D (régua virtual para conferência de medidas de montagem). *Parcial: botão Régua na cena. Falta confirmar a medida com dois cliques na pedra.*
 - [ ] Sistema de captura de cena em alta resolução para inclusão automática nos relatórios e PDFs.
 
 #### Testes
@@ -424,30 +426,30 @@ LuminiV2/
 | `RF-002` | Isolamento estrito de empresas (Multi-tenant) | Sprint 1 | [x] TenantContext + query filters |
 | `RF-003` | Gestão de clientes da marmoraria | Sprint 2 | [x] Lista, busca e cadastro |
 | `RF-004` | Criação de projetos e controle de revisões | Sprint 2 | [x] Revisão imutável após aprovação |
-| `RF-005` | Desenho de peças em 2D com medidas em mm | Sprint 4 | [ ] Pendente |
-| `RF-006` | Edição de dimensões e cotas automáticas | Sprint 4 | [ ] Pendente |
+| `RF-005` | Desenho de peças em 2D com medidas em mm | Sprint 4 | [x] Canvas em mm, snap 5 mm |
+| `RF-006` | Edição de dimensões e cotas automáticas | Sprint 4 | [x] Cota por aresta, arraste e ocultar |
 | `RF-007` | Agrupamento de elementos no desenho | Sprint 4 | [ ] Pendente |
-| `RF-008` | Configuração de furos por diâmetro | Sprint 4 | [ ] Pendente |
-| `RF-009` | Acabamentos de borda (45°, boleado, rebaixo) | Sprint 3 & 4 | [ ] Pendente |
+| `RF-008` | Configuração de furos por diâmetro | Sprint 4 | [ ] Furo Ø 35 mm no desenho; diâmetro livre pendente |
+| `RF-009` | Acabamentos de borda (45°, boleado, rebaixo) | Sprint 3 & 4 | [x] Catálogo e marca no 2D e no 3D |
 | `RF-010` | Importação e parsing seguro de DXF | Sprint 10 | [ ] Pendente |
 | `RF-011` | Orçamento vinculado à revisão do projeto | Sprint 6 | [ ] Pendente |
 | `RF-012` | Plano de corte com nesting e respeito ao disco | Sprint 8 | [ ] Pendente |
 | `RF-013` | Controle de estoque de chapas e sobras | Sprint 7 | [ ] Pendente |
 | `RF-014` | Geração de PDFs técnicos para fabricação | Sprint 9 | [ ] Pendente |
 | `RF-015` | Autosave e recuperação de rascunhos | Sprint 4 | [ ] Pendente |
-| `RF-016` | Histórico e auditoria de alterações | Sprint 2 & 11 | [ ] Pendente |
+| `RF-016` | Histórico e auditoria de alterações | Sprint 2 & 11 | [ ] `audit_events` na Sprint 2; endurecimento da Sprint 11 pendente |
 | `RF-017` | Administração de papéis e permissões (RBAC) | Sprint 1 | [x] Policies + UI papéis/membros |
 | `RF-018` | Seleção de páginas na exportação de documentos | Sprint 9 | [ ] Pendente |
 | `RF-019` | Notificação e acompanhamento de jobs longos | Sprint 8 | [ ] Pendente |
 | `RF-021` | Destaque cruzado de bordas (Orçamento <-> Desenho)| Sprint 6 | [ ] Pendente |
 | `RF-022` | Anotações sobre imagens técnicas de fabricação | Sprint 9 | [ ] Pendente |
-| `RF-023` | Inspeção e medição em ambiente 3D | Sprint 5 | [ ] Pendente |
+| `RF-023` | Inspeção e medição em ambiente 3D | Sprint 5 | [ ] Cena, órbita e seleção prontas; régua e captura pendentes |
 | `RF-024` | Controle de concorrência por versão de projeto | Sprint 2 | [x] If-Match / 409 |
 
 ---
 
 ## 6. Próximo Passo Imediato
 
-**Sprint 5 em andamento** (visualizador 3D). Já há extrusão em mm, montagem de saia e frontão e cena ligada ao desenho. Faltam material PBR por acabamento, régua 3D e captura para PDF.
+**Sprint 4 e Sprint 5 em andamento.** No 2D faltam cuba oval, polígono livre, autosave em IndexedDB e o teste de 50 peças. No 3D a cozinha monta FR-01, BC-01 e SA-01 com o 45° reto; faltam o catálogo PBR de rochas, a confirmação da régua na pedra e a captura da cena para PDF.
 
 **Follow-ups finos (não bloqueantes):** recovery de senha; teste HTTP cross-tenant; mover JWT secret para secret store; validar `Storage:Provider=S3` com MinIO real quando o Docker estiver no ar (o adapter já existe; o desenvolvimento usa URL assinada local).
