@@ -11,7 +11,9 @@ import {
   Ruler,
   SignOut,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  Buildings,
+  Folder
 } from '@phosphor-icons/react';
 import type { Part, EdgeSegment, Hole } from '@lumini/geometry-core';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -163,6 +165,18 @@ export default function App() {
 
           {/* Menus dos Módulos Principais */}
           <nav className="px-3 space-y-1">
+            {hasAnyPermission('clients.read', 'organization.manage') && (
+              <Link to="/clients" className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent">
+                <Buildings size={18} />
+                <span>Clientes</span>
+              </Link>
+            )}
+            {hasAnyPermission('projects.read', 'organization.manage') && (
+              <Link to="/projects" className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent">
+                <Folder size={18} />
+                <span>Projetos</span>
+              </Link>
+            )}
             <button 
               onClick={() => setActiveTab('drawing')}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${

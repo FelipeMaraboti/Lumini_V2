@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Lumini.Domain.Common;
 
 namespace Lumini.Api.Middlewares;
 
@@ -34,6 +35,8 @@ public class GlobalExceptionMiddleware
 
         var (statusCode, errorCode, message) = exception switch
         {
+            ResourceConflictException conflict => (HttpStatusCode.Conflict, "RESOURCE_CONFLICT", conflict.Message),
+            KeyNotFoundException => (HttpStatusCode.NotFound, "NOT_FOUND", exception.Message),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED", "Acesso não autorizado ou sessão expirada."),
             InvalidOperationException => (HttpStatusCode.Conflict, "BUSINESS_RULE_VIOLATION", exception.Message),
             ArgumentException => (HttpStatusCode.BadRequest, "VALIDATION_ERROR", exception.Message),

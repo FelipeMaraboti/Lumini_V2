@@ -182,25 +182,26 @@ LuminiV2/
 ---
 
 ### Sprint 2: Gestão de Clientes e Núcleo do Projeto
-**Meta:** Implementar gerenciamento de clientes, criação de projetos com revisões monotônicas imutáveis (`RN-005`), versionamento otimista de concorrência e upload de arquivos técnicos anexos.
+**Meta:** Implementar gerenciamento de clientes, criação de projetos com revisões monotônicas imutáveis (`RN-005`), versionamento otimista de concorrência e upload de arquivos técnicos anexos.  
+**Status:** **EM ANDAMENTO em 20/10/2026** — núcleo de domínio, API e telas entregue; MinIO e alternador histórico ficam pendentes.
 
 #### Backend
-- [ ] Criar entidades: `Client`, `Project`, `ProjectRevision`, `ProjectAttachment`.
-- [ ] Implementar máquina de estados do Projeto: `draft -> in_review -> approved -> in_production -> completed`.
-- [ ] Implementar criação e controle de revisões (`revision_number`, `snapshot_jsonb`, `geometry_schema_version`).
-- [ ] Implementar controle de concorrência otimista com coluna `version` e suporte a cabeçalho `If-Match` (`RN-013`).
-- [ ] Implementar integração com Object Storage (S3/MinIO) para uploads seguros de anexos de obra com URLs pré-assinadas de curta duração.
-- [ ] Criar tabela e pipeline de auditoria `audit_events` para gravar eventos de criação, mudança de status e novas revisões (`RN-015`).
+- [x] Criar entidades: `Client`, `Project`, `ProjectRevision`, `ProjectAttachment` — *Concluído em 20/10/2026*.
+- [x] Implementar máquina de estados do Projeto: `draft -> in_review -> approved -> in_production -> completed` — *Concluído em 20/10/2026*.
+- [x] Implementar criação e controle de revisões (`revision_number`, `snapshot_jsonb`, `geometry_schema_version`) — *Concluído em 20/10/2026*.
+- [x] Implementar controle de concorrência otimista com coluna `version` e suporte a cabeçalho `If-Match` (`RN-013`) — *Concluído em 20/10/2026*.
+- [ ] Implementar integração com Object Storage (S3/MinIO) para uploads seguros de anexos de obra com URLs pré-assinadas de curta duração. *(Parcial: porta `IFileStorage` + disco local `App_Data/uploads`; falta MinIO e URL pré-assinada.)*
+- [x] Criar tabela e pipeline de auditoria `audit_events` para gravar eventos de criação, mudança de status e novas revisões (`RN-015`) — *Concluído em 20/10/2026*.
 
 #### Frontend
-- [ ] Construir módulo de Clientes (`UI-003`, `UI-004`): listagem paginada, filtros rápidos, criação e edição com validação Zod.
-- [ ] Construir módulo de Projetos (`UI-005`, `UI-006`): visão geral com cards de status, código único do projeto e cliente vinculado.
-- [ ] Construir cabeçalho do projeto com identificador da revisão ativa, status de sincronização e alternador de revisões históricas.
-- [ ] Construir feedback visual para detecção de conflitos de concorrência (`RESOURCE_CONFLICT`).
+- [ ] Construir módulo de Clientes (`UI-003`, `UI-004`): listagem paginada, filtros rápidos, criação e edição com validação Zod. *(Parcial: lista, busca e criação com máscaras em `/clients`; detalhe dedicado ainda não.)*
+- [x] Construir módulo de Projetos (`UI-005`, `UI-006`): visão geral com cards de status, código único do projeto e cliente vinculado — *Concluído em 20/10/2026*.
+- [ ] Construir cabeçalho do projeto com identificador da revisão ativa, status de sincronização e alternador de revisões históricas. *(Parcial: cabeçalho com revisão ativa e versão; falta alternador histórico.)*
+- [x] Construir feedback visual para detecção de conflitos de concorrência (`RESOURCE_CONFLICT`) — *Concluído em 20/10/2026*.
 
 #### Testes & Validação
-- [ ] Testes de integridade de concorrência: duas requisições simultâneas tentando alterar o mesmo projeto devem resultar em um sucesso e um erro `409 Conflict`.
-- [ ] Testes de imutabilidade: garantir que uma revisão aprovada rejeita qualquer tentativa de modificação in-place.
+- [ ] Testes de integridade de concorrência: duas requisições simultâneas tentando alterar o mesmo projeto devem resultar em um sucesso e um erro `409 Conflict`. *(Domínio: versão obsoleta lança `ResourceConflictException` → HTTP 409. Falta teste HTTP concorrente.)*
+- [x] Testes de imutabilidade: garantir que uma revisão aprovada rejeita qualquer tentativa de modificação in-place — *Concluído em 20/10/2026*.
 
 ---
 
@@ -419,8 +420,8 @@ LuminiV2/
 |---|---|---|---|
 | `RF-001` | Autenticação e recuperação de usuários | Sprint 1 | [x] Auth JWT/refresh; recovery de senha pendente |
 | `RF-002` | Isolamento estrito de empresas (Multi-tenant) | Sprint 1 | [x] TenantContext + query filters |
-| `RF-003` | Gestão de clientes da marmoraria | Sprint 2 | [ ] Pendente |
-| `RF-004` | Criação de projetos e controle de revisões | Sprint 2 | [ ] Pendente |
+| `RF-003` | Gestão de clientes da marmoraria | Sprint 2 | [x] Lista, busca e cadastro |
+| `RF-004` | Criação de projetos e controle de revisões | Sprint 2 | [x] Revisão imutável após aprovação |
 | `RF-005` | Desenho de peças em 2D com medidas em mm | Sprint 4 | [ ] Pendente |
 | `RF-006` | Edição de dimensões e cotas automáticas | Sprint 4 | [ ] Pendente |
 | `RF-007` | Agrupamento de elementos no desenho | Sprint 4 | [ ] Pendente |
@@ -439,7 +440,7 @@ LuminiV2/
 | `RF-021` | Destaque cruzado de bordas (Orçamento <-> Desenho)| Sprint 6 | [ ] Pendente |
 | `RF-022` | Anotações sobre imagens técnicas de fabricação | Sprint 9 | [ ] Pendente |
 | `RF-023` | Inspeção e medição em ambiente 3D | Sprint 5 | [ ] Pendente |
-| `RF-024` | Controle de concorrência por versão de projeto | Sprint 2 | [ ] Pendente |
+| `RF-024` | Controle de concorrência por versão de projeto | Sprint 2 | [x] If-Match / 409 |
 
 ---
 

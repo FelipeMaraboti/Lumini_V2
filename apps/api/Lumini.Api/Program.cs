@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Lumini.Api.Authorization;
+using Lumini.Api.Endpoints;
 using Lumini.Api.Middlewares;
 using Lumini.Api.Services;
 using Lumini.Application.Common.Interfaces;
@@ -9,8 +10,10 @@ using Lumini.Application.Identity.Authorization;
 using Lumini.Application.Identity.DTOs;
 using Lumini.Application.Identity.Services;
 using Lumini.Domain.Identity;
+using Lumini.Application.Projects.Services;
 using Lumini.Infrastructure.Persistence;
 using Lumini.Infrastructure.Security;
+using Lumini.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
@@ -47,7 +50,12 @@ builder.Services.AddDbContext<LuminiDbContext>(options =>
 builder.Services.AddScoped<DbContext>(sp => sp.GetRequiredService<LuminiDbContext>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddScoped<IUserContext, UserContext>();
 builder.Services.AddScoped<IIdentityRepository, Lumini.Infrastructure.Persistence.Repositories.IdentityRepository>();
+builder.Services.AddScoped<IProjectRepository, Lumini.Infrastructure.Persistence.Repositories.ProjectRepository>();
+builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
+builder.Services.AddSingleton<IFileStorage>(_ =>
+    new LocalFileStorage(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "uploads")));
 builder.Services.AddSingleton<IPasswordHasher, PasswordHasher>();
 builder.Services.AddSingleton<ITokenHasher, TokenHasher>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();
@@ -145,6 +153,12 @@ if (app.Environment.IsDevelopment())
         var db = scope.ServiceProvider.GetRequiredService<LuminiDbContext>();
         if (useSqliteFallback)
         {
+            if (!await SchemaHasClientsAsync(db))
+            {
+                await db.Database.EnsureDeletedAsync();
+                app.Logger.LogWarning("SQLite de desenvolvimento recriado para incluir o schema de clientes e projetos.");
+            }
+
             await db.Database.EnsureCreatedAsync();
             app.Logger.LogWarning("Usando SQLite de desenvolvimento (lumini_dev.db). Suba o PostgreSQL via docker-compose para o ambiente canônico.");
         }
@@ -287,6 +301,21 @@ rolesGroup.MapPost("/", async (CreateRoleRequest request, IAuthService authServi
 .RequireAuthorization(AuthorizationPolicies.For(Permissions.RolesManage))
 .WithName("CreateRole");
 
+api.MapWorkspaceEndpoints();
+
 app.Run();
+
+static async Task<bool> SchemaHasClientsAsync(LuminiDbContext db)
+{
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("SELECT 1 FROM Clients LIMIT 1");
+        return true;
+    }
+    catch
+    {
+        return false;
+    }
+}
 
 public partial class Program { }

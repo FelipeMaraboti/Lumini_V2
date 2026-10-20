@@ -5,6 +5,9 @@ import { RegisterPage } from '@/features/auth/RegisterPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { MembersPage } from '@/features/auth/MembersPage';
 import { RolesPage } from '@/features/auth/RolesPage';
+import { ClientsPage } from '@/features/clients/ClientsPage';
+import { ProjectsPage } from '@/features/projects/ProjectsPage';
+import { ProjectPage } from '@/features/projects/ProjectPage';
 
 export function AppRouter() {
   return (
@@ -15,6 +18,13 @@ export function AppRouter() {
 
         <Route element={<RequireAuth />}>
           <Route path="/" element={<App />} />
+          <Route element={<RequireAuth permission="clients.read" />}>
+            <Route path="/clients" element={<ClientsPage />} />
+          </Route>
+          <Route element={<RequireAuth permission="projects.read" />}>
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:id" element={<ProjectPage />} />
+          </Route>
           <Route element={<RequireAuth permission="members.read" />}>
             <Route path="/settings/members" element={<MembersPage />} />
           </Route>

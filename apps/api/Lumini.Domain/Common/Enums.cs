@@ -15,3 +15,24 @@ public enum OrganizationStatus
     Trial = 3,
     Archived = 4
 }
+
+public enum ClientStatus
+{
+    Active = 1,
+    Archived = 2
+}
+
+public enum ProjectStatus
+{
+    Draft = 1,
+    InReview = 2,
+    Approved = 3,
+    InProduction = 4,
+    Completed = 5
+}
+
+public enum RevisionStatus
+{
+    Draft = 1,
+    Approved = 2
+}

@@ -43,6 +43,7 @@ ScaffoldingReadMe.txt
 *.db
 *.db-shm
 *.db-wal
+App_Data/
 
 # Others
 ~$*

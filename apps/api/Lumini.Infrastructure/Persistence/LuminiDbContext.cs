@@ -1,6 +1,8 @@
 using Lumini.Application.Common.Interfaces;
+using Lumini.Domain.Audit;
 using Lumini.Domain.Common;
 using Lumini.Domain.Identity;
+using Lumini.Domain.Projects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
@@ -21,6 +23,11 @@ public class LuminiDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Client> Clients => Set<Client>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectRevision> ProjectRevisions => Set<ProjectRevision>();
+    public DbSet<ProjectAttachment> ProjectAttachments => Set<ProjectAttachment>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     public LuminiDbContext(DbContextOptions<LuminiDbContext> options, ITenantContext? tenantContext = null)
         : base(options)
@@ -114,8 +121,61 @@ public class LuminiDbContext : DbContext
             entity.Property(t => t.Version).IsConcurrencyToken();
         });
 
+        modelBuilder.Entity<Client>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.HasIndex(c => new { c.TenantId, c.Name });
+            entity.Property(c => c.Name).HasMaxLength(200).IsRequired();
+            entity.Property(c => c.Email).HasMaxLength(255);
+            entity.Property(c => c.PhoneDigits).HasMaxLength(20);
+            entity.Property(c => c.DocumentDigits).HasMaxLength(14);
+            entity.Property(c => c.Notes).HasMaxLength(2000);
+            entity.Property(c => c.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<Project>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+            entity.HasIndex(p => new { p.TenantId, p.Code }).IsUnique();
+            entity.Property(p => p.Code).HasMaxLength(40).IsRequired();
+            entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            entity.Property(p => p.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<ProjectRevision>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.HasIndex(r => new { r.ProjectId, r.RevisionNumber }).IsUnique();
+            entity.Property(r => r.SnapshotJson).IsRequired();
+            entity.Property(r => r.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<ProjectAttachment>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+            entity.HasIndex(a => new { a.TenantId, a.ProjectId });
+            entity.Property(a => a.FileName).HasMaxLength(255).IsRequired();
+            entity.Property(a => a.ObjectKey).HasMaxLength(500).IsRequired();
+            entity.Property(a => a.Sha256).HasMaxLength(64).IsRequired();
+            entity.Property(a => a.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<AuditEvent>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+            entity.HasIndex(a => new { a.TenantId, a.CreatedAtUtc });
+            entity.Property(a => a.Action).HasMaxLength(80).IsRequired();
+            entity.Property(a => a.ResourceType).HasMaxLength(80).IsRequired();
+            entity.Property(a => a.MetadataJson).IsRequired();
+        });
+
         // Query filter dinâmico: CurrentTenantId é lido a cada query (não capturado em Constant)
         modelBuilder.Entity<Role>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Client>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Project>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<ProjectRevision>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<ProjectAttachment>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<AuditEvent>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Membership>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Invitation>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
     }
