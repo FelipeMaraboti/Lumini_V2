@@ -1,43 +1,168 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #0c0a09;
+  --card: #ffffff;
+  --card-foreground: #0c0a09;
+  --popover: #ffffff;
+  --popover-foreground: #0c0a09;
+  --primary: #ca3500;
+  --primary-foreground: #fff7ed;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f3f1f1;
+  --muted-foreground: #7c6d67;
+  --accent: #f3f1f1;
+  --accent-foreground: #1d1816;
+  --destructive: #e7000b;
+  --border: #e8e4e3;
+  --input: #e8e4e3;
+  --ring: #aba09c;
+  --chart-1: #ffb86a;
+  --chart-2: #ff6900;
+  --chart-3: #f54900;
+  --chart-4: #ca3500;
+  --chart-5: #9f2d00;
+  --radius: 0.625rem;
+  --sidebar: #fbfaf9;
+  --sidebar-foreground: #0c0a09;
+  --sidebar-primary: #f54900;
+  --sidebar-primary-foreground: #fff7ed;
+  --sidebar-accent: #f3f1f1;
+  --sidebar-accent-foreground: #1d1816;
+  --sidebar-border: #e8e4e3;
+  --sidebar-ring: #aba09c;
+  
+  --shadow-2xs: 0 1px 3px 0px rgb(0 0 0 / 0.05);
+  --shadow-xs: 0 1px 3px 0px rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+  --shadow: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+  --shadow-md: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 2px 4px -1px rgb(0 0 0 / 0.10);
+  --shadow-lg: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 4px 6px -1px rgb(0 0 0 / 0.10);
+  --shadow-xl: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 8px 10px -1px rgb(0 0 0 / 0.10);
+  --shadow-2xl: 0 1px 3px 0px rgb(0 0 0 / 0.25);
+}
+
+.dark {
+  --background: #0c0a09;
+  --foreground: #fbfaf9;
+  --card: #1d1816;
+  --card-foreground: #fbfaf9;
+  --popover: #1d1816;
+  --popover-foreground: #fbfaf9;
+  --primary: #9f2d00;
+  --primary-foreground: #fff7ed;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #2b2422;
+  --muted-foreground: #aba09c;
+  --accent: #2b2422;
+  --accent-foreground: #fbfaf9;
+  --destructive: #ff6467;
+  --border: #ffffff1a;
+  --input: #ffffff26;
+  --ring: #7c6d67;
+  --chart-1: #ffb86a;
+  --chart-2: #ff6900;
+  --chart-3: #f54900;
+  --chart-4: #ca3500;
+  --chart-5: #9f2d00;
+  --sidebar: #1d1816;
+  --sidebar-foreground: #fbfaf9;
+  --sidebar-primary: #ff6900;
+  --sidebar-primary-foreground: #fff7ed;
+  --sidebar-accent: #2b2422;
+  --sidebar-accent-foreground: #fbfaf9;
+  --sidebar-border: #ffffff1a;
+  --sidebar-ring: #7c6d67;
+  
+  --shadow-2xs: 0 1px 3px 0px rgb(0 0 0 / 0.05);
+  --shadow-xs: 0 1px 3px 0px rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+  --shadow: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+  --shadow-md: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 2px 4px -1px rgb(0 0 0 / 0.10);
+  --shadow-lg: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 4px 6px -1px rgb(0 0 0 / 0.10);
+  --shadow-xl: 0 1px 3px 0px rgb(0 0 0 / 0.10), 0 8px 10px -1px rgb(0 0 0 / 0.10);
+  --shadow-2xl: 0 1px 3px 0px rgb(0 0 0 / 0.25);
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-heading);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+}
 
 @layer base {
-  :root {
-    --bg-main: #0b0f17;
-    --bg-surface: #121824;
-    --bg-surface-elevated: #1a2234;
-    --border-subtle: #232e42;
-    --border-strong: #33425b;
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --accent-gold: #f59e0b;
-    --accent-cyan: #06b6d4;
-    --accent-emerald: #10b981;
-    --accent-rose: #f43f5e;
+  * {
+    @apply border-border outline-ring/50;
   }
-
   body {
-    background-color: var(--bg-main);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  code,
+  pre {
+    font-family: var(--font-mono);
   }
 }
 
-/* Custom CAD Grid Background */
+/* CAD Grid Pattern adaptado para os temas claro e escuro */
 .cad-grid-pattern {
-  background-size: 20px 20px;
+  background-size: 25px 25px;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-}
-
-.cad-grid-major {
-  background-size: 100px 100px;
-  background-image: 
-    linear-gradient(to right, rgba(6, 182, 212, 0.12) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(6, 182, 212, 0.12) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px);
 }
