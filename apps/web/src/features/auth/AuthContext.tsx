@@ -88,6 +88,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     else localStorage.removeItem(USER_KEY);
   }, [user]);
 
+  useEffect(() => {
+    const sync = () => {
+      setToken(localStorage.getItem(TOKEN_KEY));
+      setRefreshToken(localStorage.getItem(REFRESH_KEY));
+      setUser(parseStoredUser());
+    };
+    window.addEventListener('lumini-auth-updated', sync);
+    return () => window.removeEventListener('lumini-auth-updated', sync);
+  }, []);
+
   const processLoginResponse = useCallback((response: LoginApiResponse) => {
     const authUser: AuthUser = {
       userId: response.userId,

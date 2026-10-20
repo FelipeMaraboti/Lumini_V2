@@ -2,7 +2,7 @@
 export function AuthBrandPanel() {
   return (
     <div className="relative hidden items-center justify-center overflow-hidden border-r border-white/5 bg-black p-12 md:flex md:w-[75%]">
-      <div className="absolute left-[-10%] top-[-10%] h-[50%] w-[50%] animate-pulse rounded-full bg-primary/20 blur-[120px]" />
+      <div className="absolute left-[-10%] top-[-10%] h-[40%] w-[40%] rounded-full bg-primary/10 blur-[140px]" />
       <div className="absolute bottom-[-10%] right-[-10%] h-[50%] w-[50%] animate-pulse rounded-full bg-blue-500/20 blur-[120px] [animation-delay:700ms]" />
 
       <div className="relative z-10 max-w-2xl space-y-8 text-center">

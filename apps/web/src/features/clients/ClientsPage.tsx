@@ -67,7 +67,7 @@ export function ClientsPage() {
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="E-mail" className="h-10 rounded-lg border border-input bg-background px-3 text-sm" />
           <MaskedInput mask="phone" value={phone} onChange={setPhone} />
           <MaskedInput mask="document" value={documentDigits} onChange={setDocumentDigits} />
-          <button type="submit" className="h-10 rounded-lg bg-primary text-sm font-semibold text-primary-foreground md:col-span-2">Cadastrar cliente</button>
+          <button type="submit" className="h-10 rounded-lg border border-border bg-foreground/5 text-sm font-semibold text-foreground hover:border-primary/50 md:col-span-2">Cadastrar cliente</button>
         </form>
 
         <input value={search} onChange={(e) => { setSearch(e.target.value); void load(e.target.value); }} placeholder="Buscar por nome ou e-mail" className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm" />

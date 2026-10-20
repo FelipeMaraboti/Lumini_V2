@@ -32,6 +32,10 @@ export class ApiError extends Error {
 export interface RequestOptions extends RequestInit {
   etag?: string;
   token?: string;
+  /** Não reenvia o access token. Usado na renovação da sessão. */
+  anonymous?: boolean;
+  /** Evita um segundo ciclo de renovação na mesma chamada. */
+  retried?: boolean;
 }
 
 export interface ApiResponse<T> {
@@ -41,6 +45,67 @@ export interface ApiResponse<T> {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const TOKEN_KEY = 'lumini_auth_token';
+const REFRESH_KEY = 'lumini_refresh_token';
+const USER_KEY = 'lumini_auth_user';
+
+let renewing: Promise<string | null> | null = null;
+
+function clearStoredSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(USER_KEY);
+  window.dispatchEvent(new Event('lumini-auth-updated'));
+}
+
+async function renewAccessToken(): Promise<string | null> {
+  const refreshToken = localStorage.getItem(REFRESH_KEY);
+  if (!refreshToken) return null;
+  if (!renewing) {
+    renewing = (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Correlation-Id': crypto.randomUUID(),
+          },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!response.ok) return null;
+        const data = (await response.json()) as {
+          accessToken: string;
+          refreshToken: string;
+          userId: string;
+          displayName: string;
+          email: string;
+          tenantId: string;
+          organizationName: string;
+          roleName: string;
+          permissions: string[];
+        };
+        localStorage.setItem(TOKEN_KEY, data.accessToken);
+        localStorage.setItem(REFRESH_KEY, data.refreshToken);
+        localStorage.setItem(USER_KEY, JSON.stringify({
+          userId: data.userId,
+          email: data.email,
+          displayName: data.displayName,
+          tenantId: data.tenantId,
+          organizationName: data.organizationName,
+          roleName: data.roleName,
+          permissions: data.permissions,
+        }));
+        window.dispatchEvent(new Event('lumini-auth-updated'));
+        return data.accessToken;
+      } catch {
+        return null;
+      } finally {
+        renewing = null;
+      }
+    })();
+  }
+  return renewing;
+}
 
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
   const correlationId = crypto.randomUUID();
@@ -54,7 +119,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
     headers.set('If-Match', options.etag);
   }
 
-  const token = options.token || localStorage.getItem('lumini_auth_token');
+  const token = options.anonymous ? null : options.token || localStorage.getItem(TOKEN_KEY);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -66,6 +131,14 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
 
   const responseCorrelationId = response.headers.get('X-Correlation-Id') || correlationId;
   const responseEtag = response.headers.get('ETag') || undefined;
+
+  if (response.status === 401 && !options.retried && !options.anonymous) {
+    const renewed = await renewAccessToken();
+    if (renewed) {
+      return apiRequest<T>(endpoint, { ...options, token: renewed, retried: true });
+    }
+    clearStoredSession();
+  }
 
   if (!response.ok) {
     let errorPayload: ApiErrorPayload;

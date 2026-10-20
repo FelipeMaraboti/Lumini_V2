@@ -159,7 +159,7 @@ export function ProjectPage() {
 
         <form onSubmit={(e) => void save(e)} className="flex gap-2">
           <input value={name} onChange={(e) => setName(e.target.value)} className="h-10 flex-1 rounded-lg border border-input bg-card px-3 text-sm" />
-          <button type="submit" className="h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">Salvar</button>
+          <button type="submit" className="h-10 rounded-lg border border-border bg-foreground/5 px-4 text-sm font-semibold text-foreground hover:border-primary/50">Salvar</button>
         </form>
 
         <div className="flex gap-2">

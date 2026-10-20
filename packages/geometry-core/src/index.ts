@@ -132,3 +132,5 @@ export interface CutPlan {
     areaMm2: number;
   }[];
 }
+
+export * from './edit';

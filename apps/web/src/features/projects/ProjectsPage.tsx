@@ -62,7 +62,7 @@ export function ProjectsPage() {
           </select>
           <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required placeholder="Código" className="h-10 rounded-lg border border-input bg-background px-3 text-sm" />
           <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Nome do projeto" className="h-10 rounded-lg border border-input bg-background px-3 text-sm" />
-          <button type="submit" className="h-10 rounded-lg bg-primary text-sm font-semibold text-primary-foreground md:col-span-4">Criar projeto</button>
+          <button type="submit" className="h-10 rounded-lg border border-border bg-foreground/5 text-sm font-semibold text-foreground hover:border-primary/50 md:col-span-4">Criar projeto</button>
         </form>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

@@ -107,7 +107,7 @@ export function ClientPage() {
           <MaskedInput mask="phone" value={phone} onChange={setPhone} />
           <MaskedInput mask="document" value={documentDigits} onChange={setDocumentDigits} />
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas" className="min-h-20 rounded-lg border border-input bg-background px-3 py-2 text-sm" />
-          <button type="submit" className="h-10 rounded-lg bg-primary text-sm font-semibold text-primary-foreground">Salvar cliente</button>
+          <button type="submit" className="h-10 rounded-lg border border-border bg-foreground/5 text-sm font-semibold text-foreground hover:border-primary/50">Salvar cliente</button>
         </form>
 
         <section className="space-y-2">

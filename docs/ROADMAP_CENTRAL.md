@@ -249,7 +249,7 @@ LuminiV2/
   - Polígono livre em L ou U (bancadas com retorno);
   - Inserção de furos por diâmetro numérico (ex: furo de 35mm para torneira mono-comando);
   - Recorte de cubas retangulares e ovais com folga de colagem.
-- [ ] Sistema de cotas dinâmicas: cotas automáticas exibidas nas arestas com opção de reposicionamento e ocultação.
+- [x] Sistema de cotas dinâmicas: cotas automáticas exibidas nas arestas com opção de reposicionamento e ocultação.
 - [ ] Painel lateral contextual:
   - Seleção de borda da peça com aplicação de acabamento específico (ex: Borda frontal com 45° + saia de 40mm);
   - Destaque bidirecional: ao clicar na aresta no canvas, o painel foca na borda correspondente.
@@ -266,15 +266,15 @@ LuminiV2/
 **Meta:** Proporcionar inspeção tridimensional realista das peças de pedra com Three.js / React Three Fiber, permitindo conferir encaixes de saias 45°, frontões e cubas esculpidas em rocha (`RF-023`).
 
 #### Frontend — Viewport 3D (`apps/web/src/editor3d`)
-- [ ] Cena Three.js sincronizada em tempo real com o modelo geométrico canônico da Sprint 4.
-- [ ] Extrusão paramétrica das peças 2D respeitando a espessura da chapa cadastrada (ex: 20mm).
+- [x] Cena Three.js sincronizada em tempo real com o modelo geométrico canônico da Sprint 4. *Concluído em 20/10/2026. O botão 3D usa o mesmo estado do desenho.*
+- [x] Extrusão paramétrica das peças 2D respeitando a espessura da chapa cadastrada (ex: 20mm). *Concluído em 20/10/2026.*
 - [ ] Shaders/materiais PBR representando granitos, mármores e acabamentos polidos/escovados.
-- [ ] Montagem tridimensional: posicionamento relativo de saias a 45° descendo da bancada e frontões subindo na parede.
+- [x] Montagem tridimensional: posicionamento relativo de saias a 45° descendo da bancada e frontões subindo na parede. *Concluído em 20/10/2026. A saia desce 40 mm a partir da face de baixo e encontra o 45° sem volume em comum; o frontão sobe 150 mm apoiado no fundo.*
 - [ ] Ferramenta de inspeção e medição 3D (régua virtual para conferência de medidas de montagem).
 - [ ] Sistema de captura de cena em alta resolução para inclusão automática nos relatórios e PDFs.
 
 #### Testes
-- [ ] Validação de fidelidade dimensional: conferir se a extrusão 3D e as posições espaciais correspondem exatamente aos milímetros do modelo canônico.
+- [x] Validação de fidelidade dimensional: conferir se a extrusão 3D e as posições espaciais correspondem exatamente aos milímetros do modelo canônico. *Concluído em 20/10/2026 (`apps/web/assembly.test.ts`).*
 
 ---
 
@@ -448,6 +448,6 @@ LuminiV2/
 
 ## 6. Próximo Passo Imediato
 
-**Iniciar a Sprint 4** (Motor de Geometria e Editor 2D em milímetros).
+**Sprint 5 em andamento** (visualizador 3D). Já há extrusão em mm, montagem de saia e frontão e cena ligada ao desenho. Faltam material PBR por acabamento, régua 3D e captura para PDF.
 
 **Follow-ups finos (não bloqueantes):** recovery de senha; teste HTTP cross-tenant; mover JWT secret para secret store; validar `Storage:Provider=S3` com MinIO real quando o Docker estiver no ar (o adapter já existe; o desenvolvimento usa URL assinada local).

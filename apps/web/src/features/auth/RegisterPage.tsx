@@ -224,7 +224,7 @@ export function RegisterPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="h-14 w-full rounded-xl bg-primary text-base font-bold text-primary-foreground shadow-sm transition-all hover:bg-primary/92 hover:shadow-md active:scale-[0.98] disabled:opacity-50 dark:shadow-[0_4px_24px_rgba(249,115,22,0.18)] cursor-pointer"
+                className="h-14 w-full rounded-xl border border-primary/40 bg-foreground/5 text-base font-bold text-foreground transition-all hover:border-primary hover:bg-primary/10 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
               >
                 {isLoading ? (
                   <span className="inline-flex items-center justify-center">

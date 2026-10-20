@@ -131,7 +131,7 @@ export function MembersPage() {
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
-              <button type="submit" className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-semibold cursor-pointer">
+              <button type="submit" className="h-9 px-4 rounded-lg border border-border bg-foreground/5 text-foreground text-xs font-semibold cursor-pointer hover:border-primary/50">
                 Gerar convite
               </button>
             </div>

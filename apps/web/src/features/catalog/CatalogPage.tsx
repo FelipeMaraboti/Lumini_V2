@@ -285,7 +285,7 @@ export function CatalogPage() {
                   <span key={item}>{index > 0 ? ', ' : ''}<MaskedText mask="mm" unit="mm" value={item} /></span>
                 ))}
           </p>
-          <button type="submit" className="h-10 rounded-lg bg-primary text-sm font-semibold text-primary-foreground md:col-span-3">Cadastrar material</button>
+          <button type="submit" className="h-10 rounded-lg border border-border bg-foreground/5 text-sm font-semibold text-foreground hover:border-primary/50 md:col-span-3">Cadastrar material</button>
         </form>
 
         <section className="space-y-3">
@@ -315,7 +315,7 @@ export function CatalogPage() {
               </button>
             ))}
           </div>
-          <button type="submit" className="h-10 rounded-lg bg-primary text-sm font-semibold text-primary-foreground md:col-span-3">Validar no servidor</button>
+          <button type="submit" className="h-10 rounded-lg border border-border bg-foreground/5 text-sm font-semibold text-foreground hover:border-primary/50 md:col-span-3">Validar no servidor</button>
           {compatibility && (
             <p className={`md:col-span-3 text-sm ${compatibility.compatible ? 'text-primary' : 'text-destructive'}`}>{compatibility.message}</p>
           )}
@@ -334,7 +334,7 @@ export function CatalogPage() {
               : finishes.map((finish) => <option key={finish.id} value={finish.id}>{finish.name}</option>)}
           </select>
           <MaskedInput mask="currency" unit={priceBasis === 'SquareMeter' ? '/ m²' : '/ m'} value={unitPrice} onChange={setUnitPrice} />
-          <button type="submit" className="h-10 rounded-lg bg-primary text-sm font-semibold text-primary-foreground">Adicionar regra</button>
+          <button type="submit" className="h-10 rounded-lg border border-border bg-foreground/5 text-sm font-semibold text-foreground hover:border-primary/50">Adicionar regra</button>
           <ul className="md:col-span-2 space-y-1 text-sm">
             {defaultTable?.rules.map((rule) => (
               <li key={rule.id} className="flex justify-between border-t border-border py-2">

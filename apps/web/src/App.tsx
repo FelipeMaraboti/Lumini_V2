@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Compass, 
@@ -8,7 +8,6 @@ import {
   Package, 
   FloppyDisk, 
   Check,
-  Ruler,
   SignOut,
   Users,
   ShieldCheck,
@@ -16,10 +15,24 @@ import {
   Folder,
   Palette
 } from '@phosphor-icons/react';
-import type { Part, EdgeSegment, Hole } from '@lumini/geometry-core';
+import { addHole, addSink, boundsOf, lPart, netAreaMm2, rectanglePart, snapMm, type EdgeFinishType, type EdgeSegment, type Hole, type Part } from '@lumini/geometry-core';
 import { useAuth } from '@/features/auth/AuthContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { MaskedText } from '@/components/ui/MaskedText';
+import { PieceEditor, type DimensionOverride } from '@/editor2d/PieceEditor';
+import { AssemblyView } from '@/editor3d/AssemblyView';
+import { initialKitchen, type PlacedPart } from '@/editor2d/kitchen';
+
+const finishLabel: Record<EdgeFinishType, string> = {
+  raw: 'Corte bruto',
+  straight_polish: 'Polimento reto',
+  miter_45: 'Meia-esquadria 45°',
+  bullnose: 'Boleado',
+  half_bullnose: 'Meia-cana',
+  bevel: 'Bisotê',
+  italian_recess: 'Rebaixo italiano',
+  american_recess: 'Rebaixo americano',
+};
 
 export default function App() {
   const { user, logout, hasAnyPermission } = useAuth();
@@ -29,6 +42,15 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState<'drawing' | 'pricing' | 'cutting' | 'inventory' | 'documents'>('drawing');
   const [selectedPartId, setSelectedPartId] = useState<string>('part-1');
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>('e3');
+  const [placed, setPlaced] = useState<PlacedPart[]>(() => initialKitchen());
+  const [editorNotice, setEditorNotice] = useState<string | null>(null);
+  const [dimensionState, setDimensionState] = useState<Record<string, DimensionOverride>>({});
+  const [space, setSpace] = useState<'2d' | '3d'>('2d');
+  const placedRef = useRef(placed);
+  const pastRef = useRef<PlacedPart[][]>([]);
+  const futureRef = useRef<PlacedPart[][]>([]);
+  placedRef.current = placed;
 
   // Sincroniza com ThemeToggle / localStorage
   useEffect(() => {
@@ -39,97 +61,157 @@ export default function App() {
     return () => observer.disconnect();
   }, []);
 
-  // Exemplo de peças reais modeladas no formato canônico da marmoraria
-  const demoParts: Part[] = [
-    {
-      id: 'part-1',
-      partCode: 'BC-01',
-      name: 'Bancada Cozinha Gourmet',
-      materialId: 'mat-quartz-calacatta',
-      materialName: 'Quartzito Calacatta Prime',
-      thicknessMm: 20,
-      outerContour: [
-        { x: 0, y: 0 },
-        { x: 2600, y: 0 },
-        { x: 2600, y: 650 },
-        { x: 0, y: 650 },
-      ],
-      edges: [
-        { id: 'e1', startIndex: 0, endIndex: 1, lengthMm: 2600, finish: 'raw', notes: 'Parede de fundo' },
-        { id: 'e2', startIndex: 1, endIndex: 2, lengthMm: 650, finish: 'miter_45', skirtHeightMm: 40, notes: 'Lateral direita com saia 40mm' },
-        { id: 'e3', startIndex: 2, endIndex: 3, lengthMm: 2600, finish: 'miter_45', skirtHeightMm: 40, notes: 'Frente com saia 40mm 45°' },
-        { id: 'e4', startIndex: 3, endIndex: 0, lengthMm: 650, finish: 'straight_polish', notes: 'Lateral livre polida' },
-      ],
-      holes: [
-        { id: 'h1', kind: 'faucet', center: { x: 1300, y: 120 }, diameterMm: 35, label: 'Furo Monocomando 35mm' }
-      ],
-      innerContours: [
-        { 
-          id: 'c1', 
-          kind: 'undermount_sink', 
-          widthMm: 600, 
-          heightMm: 450, 
-          clearanceMm: 15, 
-          points: [
-            { x: 1000, y: 200 },
-            { x: 1600, y: 200 },
-            { x: 1600, y: 550 },
-            { x: 1000, y: 550 }
-          ],
-          label: 'Cuba Inox Tramontina Morgana' 
-        }
-      ],
-      colorHex: '#38bdf8'
-    },
-    {
-      id: 'part-2',
-      partCode: 'FR-01',
-      name: 'Frontão Traseiro de Parede',
-      materialId: 'mat-quartz-calacatta',
-      materialName: 'Quartzito Calacatta Prime',
-      thicknessMm: 20,
-      outerContour: [
-        { x: 0, y: 0 },
-        { x: 2600, y: 0 },
-        { x: 2600, y: 150 },
-        { x: 0, y: 150 },
-      ],
-      edges: [
-        { id: 'fe1', startIndex: 0, endIndex: 1, lengthMm: 2600, finish: 'raw' },
-        { id: 'fe2', startIndex: 1, endIndex: 2, lengthMm: 150, finish: 'straight_polish' },
-        { id: 'fe3', startIndex: 2, endIndex: 3, lengthMm: 2600, finish: 'straight_polish', notes: 'Borda superior visível' },
-        { id: 'fe4', startIndex: 3, endIndex: 0, lengthMm: 150, finish: 'straight_polish' },
-      ],
-      holes: [],
-      innerContours: [],
-      colorHex: '#a855f7'
-    },
-    {
-      id: 'part-3',
-      partCode: 'SA-01',
-      name: 'Saia Frontal Meia-Esquadria 45°',
-      materialId: 'mat-quartz-calacatta',
-      materialName: 'Quartzito Calacatta Prime',
-      thicknessMm: 20,
-      outerContour: [
-        { x: 0, y: 0 },
-        { x: 2600, y: 0 },
-        { x: 2600, y: 40 },
-        { x: 0, y: 40 },
-      ],
-      edges: [
-        { id: 'se1', startIndex: 0, endIndex: 1, lengthMm: 2600, finish: 'miter_45', notes: 'Encaixe 45° com a bancada' },
-        { id: 'se2', startIndex: 1, endIndex: 2, lengthMm: 40, finish: 'miter_45' },
-        { id: 'se3', startIndex: 2, endIndex: 3, lengthMm: 2600, finish: 'straight_polish' },
-        { id: 'se4', startIndex: 3, endIndex: 0, lengthMm: 40, finish: 'miter_45' },
-      ],
-      holes: [],
-      innerContours: [],
-      colorHex: '#f59e0b'
-    }
-  ];
+  const selected = placed.find((item) => item.part.id === selectedPartId) ?? placed[0];
+  const selectedPart = selected.part;
+  const selectedBox = boundsOf(selectedPart.outerContour);
 
-  const selectedPart = demoParts.find(p => p.id === selectedPartId) || demoParts[0];
+  function selectPart(partId: string) {
+    setSelectedPartId(partId);
+    const part = placed.find((item) => item.part.id === partId)?.part;
+    setSelectedEdgeId((current) => (part?.edges.some((edge) => edge.id === current) ? current : part?.edges[0]?.id ?? null));
+  }
+
+  function setDimension(partId: string, edgeId: string, next: DimensionOverride) {
+    setDimensionState((current) => ({ ...current, [`${partId}:${edgeId}`]: next }));
+  }
+
+  useEffect(() => {
+    if (!selectedEdgeId) return;
+    document.getElementById(`edge-${selectedPartId}-${selectedEdgeId}`)?.scrollIntoView({ block: 'nearest' });
+  }, [selectedEdgeId, selectedPartId]);
+
+  function remember() {
+    pastRef.current.push(structuredClone(placedRef.current));
+    if (pastRef.current.length > 40) pastRef.current.shift();
+    futureRef.current = [];
+  }
+
+  function undo() {
+    const previous = pastRef.current.pop();
+    if (!previous) return;
+    futureRef.current.push(structuredClone(placedRef.current));
+    setPlaced(previous);
+    setSelectedPartId((current) => previous.some((item) => item.part.id === current) ? current : previous[0]?.part.id ?? current);
+  }
+
+  function redo() {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    pastRef.current.push(structuredClone(placedRef.current));
+    setPlaced(next);
+    setSelectedPartId((current) => next.some((item) => item.part.id === current) ? current : next[0]?.part.id ?? current);
+  }
+
+  function nextCode(prefix: string) {
+    const numbers = placedRef.current
+      .map((item) => item.part.partCode)
+      .filter((code) => code.startsWith(`${prefix}-`))
+      .map((code) => Number(code.slice(prefix.length + 1)) || 0);
+    const sequence = Math.max(0, ...numbers) + 1;
+    return `${prefix}-${String(sequence).padStart(2, '0')}`;
+  }
+
+  function placeNew(part: Part) {
+    remember();
+    const points = placedRef.current.flatMap((item) => item.part.outerContour.map((point) => ({ x: point.x + item.xMm, y: point.y + item.yMm })));
+    const originX = points.length === 0 ? 0 : snapMm(boundsOf(points).maxX + 80);
+    setPlaced([...placedRef.current, { xMm: originX, yMm: 0, part }]);
+    setSelectedPartId(part.id);
+    setSelectedEdgeId(part.edges[0]?.id ?? null);
+    setEditorNotice(null);
+  }
+
+  function addRectangle() {
+    const source = placedRef.current.find((item) => item.part.id === selectedPartId)?.part ?? placedRef.current[0]?.part;
+    if (!source) return;
+    placeNew(rectanglePart({
+      id: crypto.randomUUID(),
+      partCode: nextCode('PC'),
+      name: 'Peça retangular',
+      materialId: source.materialId,
+      materialName: source.materialName,
+      thicknessMm: source.thicknessMm,
+    }, 1200, 600));
+  }
+
+  function addL() {
+    const source = placedRef.current.find((item) => item.part.id === selectedPartId)?.part ?? placedRef.current[0]?.part;
+    if (!source) return;
+    placeNew(lPart({
+      id: crypto.randomUUID(),
+      partCode: nextCode('BL'),
+      name: 'Bancada em L',
+      materialId: source.materialId,
+      materialName: source.materialName,
+      thicknessMm: source.thicknessMm,
+    }, 1800, 1400, 600));
+  }
+
+  function insertHole() {
+    const current = placedRef.current;
+    const item = current.find((entry) => entry.part.id === selectedPartId);
+    if (!item) return;
+    const part = addHole(item.part, 35);
+    if (!part) {
+      setEditorNotice('O furo de 35 mm não cabe nesta peça.');
+      return;
+    }
+    remember();
+    setPlaced(current.map((entry) => (entry.part.id === part.id ? { ...entry, part } : entry)));
+    setEditorNotice(null);
+  }
+
+  function insertSink() {
+    const current = placedRef.current;
+    const item = current.find((entry) => entry.part.id === selectedPartId);
+    if (!item) return;
+    const part = addSink(item.part);
+    if (!part) {
+      setEditorNotice('A cuba não cabe com a margem de 15 mm.');
+      return;
+    }
+    remember();
+    setPlaced(current.map((entry) => (entry.part.id === part.id ? { ...entry, part } : entry)));
+    setEditorNotice(null);
+  }
+
+  function cycleFinish(edgeId: string) {
+    remember();
+    const order: EdgeFinishType[] = ['raw', 'straight_polish', 'miter_45', 'bullnose', 'half_bullnose', 'bevel', 'italian_recess', 'american_recess'];
+    setPlaced((current) => current.map((item) => {
+      if (item.part.id !== selectedPartId) return item;
+      return {
+        ...item,
+        part: {
+          ...item.part,
+          edges: item.part.edges.map((edge) => {
+            if (edge.id !== edgeId) return edge;
+            const finish = order[(order.indexOf(edge.finish) + 1) % order.length];
+            return { ...edge, finish, skirtHeightMm: finish === 'miter_45' ? edge.skirtHeightMm ?? 40 : undefined };
+          }),
+        },
+      };
+    }));
+  }
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+      } else if (key === 'y') {
+        event.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   return (
     <div className="flex h-screen w-screen bg-background text-foreground font-sans overflow-hidden transition-colors duration-200 antialiased">
@@ -188,7 +270,7 @@ export default function App() {
               onClick={() => setActiveTab('drawing')}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'drawing' 
-                  ? 'bg-primary text-primary-foreground shadow-xs font-semibold' 
+                  ? 'bg-foreground/5 text-foreground font-semibold shadow-[inset_2px_0_0_0_var(--primary)]' 
                   : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent'
               }`}
             >
@@ -200,7 +282,7 @@ export default function App() {
               onClick={() => setActiveTab('pricing')}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'pricing' 
-                  ? 'bg-primary text-primary-foreground shadow-xs font-semibold' 
+                  ? 'bg-foreground/5 text-foreground font-semibold shadow-[inset_2px_0_0_0_var(--primary)]' 
                   : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent'
               }`}
             >
@@ -212,7 +294,7 @@ export default function App() {
               onClick={() => setActiveTab('cutting')}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'cutting' 
-                  ? 'bg-primary text-primary-foreground shadow-xs font-semibold' 
+                  ? 'bg-foreground/5 text-foreground font-semibold shadow-[inset_2px_0_0_0_var(--primary)]' 
                   : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent'
               }`}
             >
@@ -224,7 +306,7 @@ export default function App() {
               onClick={() => setActiveTab('inventory')}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'inventory' 
-                  ? 'bg-primary text-primary-foreground shadow-xs font-semibold' 
+                  ? 'bg-foreground/5 text-foreground font-semibold shadow-[inset_2px_0_0_0_var(--primary)]' 
                   : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent'
               }`}
             >
@@ -236,7 +318,7 @@ export default function App() {
               onClick={() => setActiveTab('documents')}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'documents' 
-                  ? 'bg-primary text-primary-foreground shadow-xs font-semibold' 
+                  ? 'bg-foreground/5 text-foreground font-semibold shadow-[inset_2px_0_0_0_var(--primary)]' 
                   : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent'
               }`}
             >
@@ -288,7 +370,7 @@ export default function App() {
                 Modelo Técnico Central (SSOT)
               </span>
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                {activeTab === 'drawing' && 'Editor CAD Paramétrico (Medidas em mm)'}
+                {activeTab === 'drawing' && (space === '2d' ? 'Geometria da peça — arraste no desenho' : 'Montagem 3D — bancada, saia e frontão')}
                 {activeTab === 'pricing' && 'Orçamento Rastreável por Metro Quadrado & Borda'}
                 {activeTab === 'cutting' && 'Otimização de Corte com Kerf de Serra'}
                 {activeTab === 'inventory' && 'Controle de Chapas Inteiras & Retalhos'}
@@ -302,8 +384,8 @@ export default function App() {
               <Check size={14} weight="bold" className="text-emerald-500" />
               <span>Autosave: Sincronizado</span>
             </div>
-            <button className="flex items-center gap-1.5 bg-primary hover:opacity-90 text-primary-foreground px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer">
-              <FloppyDisk size={16} weight="bold" />
+            <button className="flex items-center gap-1.5 border border-border bg-foreground/5 hover:border-primary/50 text-foreground px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer">
+              <FloppyDisk size={16} weight="bold" className="text-primary" />
               <span>Salvar Revisão</span>
             </button>
           </div>
@@ -314,194 +396,148 @@ export default function App() {
           {/* MÓDULO 1: DESENHO CAD */}
           {activeTab === 'drawing' && (
             <div className="flex-1 flex overflow-hidden">
-              {/* CANVAS 2D INTERATIVO */}
-              <div className="flex-1 relative cad-grid-pattern bg-background overflow-hidden flex flex-col">
-                {/* Régua / Controles Rápidos do Canvas */}
-                <div className="h-9 bg-card/80 backdrop-blur border-b border-border px-4 flex items-center justify-between text-xs text-muted-foreground">
-                  <div className="flex items-center gap-4">
-                    <span className="font-mono text-[11px] text-primary flex items-center gap-1">
-                      <Ruler size={14} weight="bold" />
-                      Grid: 50mm | Snap: Ativo
-                    </span>
-                    <span className="text-[11px]">Unidade Canônica: Milímetros (mm)</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] bg-muted px-2 py-0.5 rounded text-foreground font-mono">Zoom: 100%</span>
-                  </div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-700 bg-[#080808]">
+                <div className="flex h-8 shrink-0 items-center justify-between border-b border-zinc-700 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-400">
+                  <span>Prancha 01 · {selectedPart.partCode} {selectedPart.name}</span>
+                  <span>unidade mm · grade 50 · snap 5</span>
                 </div>
-
-                {/* VISUALIZAÇÃO GRÁFICA VETORIAL SVG (PEÇAS EM ESCALA) */}
-                <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
-                  <div className="relative bg-card border-2 border-dashed border-border rounded-xl p-8 shadow-md">
-                    <div className="mb-4 flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">Layout da Bancada & Frontão (Preview em Escala)</span>
-                      <span className="font-mono text-primary font-medium">Dimensões Reais de Fábrica</span>
-                    </div>
-
-                    <svg width="680" height="340" viewBox="0 0 2800 1200" className="bg-background rounded-lg border border-border">
-                      {/* Grid de fundo do SVG */}
-                      <defs>
-                        <pattern id="cadGrid" width="100" height="100" patternUnits="userSpaceOnUse">
-                          <path d="M 100 0 L 0 0 0 100" fill="none" stroke="currentColor" strokeOpacity="0.08" strokeWidth="1" />
-                        </pattern>
-                      </defs>
-                      <rect width="2800" height="1200" fill="url(#cadGrid)" />
-
-                      {/* FRONTÃO FR-01 */}
-                      <g className="cursor-pointer" onClick={() => setSelectedPartId('part-2')}>
-                        <rect 
-                          x="100" 
-                          y="80" 
-                          width="2600" 
-                          height="150" 
-                          fill={selectedPartId === 'part-2' ? '#a855f7' : '#71717a'} 
-                          fillOpacity={selectedPartId === 'part-2' ? 0.35 : 0.15}
-                          stroke={selectedPartId === 'part-2' ? '#a855f7' : '#a1a1aa'} 
-                          strokeWidth="6" 
-                          rx="4"
-                        />
-                        <text x="1400" y="170" fill={isDark ? '#fbfaf9' : '#0c0a09'} fontSize="60" textAnchor="middle" fontWeight="bold">
-                          FR-01: Frontão Traseiro 2600 x 150 mm
-                        </text>
-                      </g>
-
-                      {/* BANCADA PRINCIPAL BC-01 */}
-                      <g className="cursor-pointer" onClick={() => setSelectedPartId('part-1')}>
-                        <rect 
-                          x="100" 
-                          y="320" 
-                          width="2600" 
-                          height="650" 
-                          fill={selectedPartId === 'part-1' ? '#ca3500' : '#71717a'} 
-                          fillOpacity={selectedPartId === 'part-1' ? 0.25 : 0.1}
-                          stroke={selectedPartId === 'part-1' ? '#ca3500' : '#a1a1aa'} 
-                          strokeWidth="8" 
-                          rx="6"
-                        />
-
-                        {/* Recorte da Cuba com rebaixo */}
-                        <rect 
-                          x="1100" 
-                          y="420" 
-                          width="600" 
-                          height="450" 
-                          fill={isDark ? '#1d1816' : '#f3f1f1'} 
-                          stroke="#ff6900" 
-                          strokeWidth="6" 
-                          strokeDasharray="16 8"
-                          rx="8"
-                        />
-                        <text x="1400" y="660" fill="#ff6900" fontSize="48" textAnchor="middle" fontWeight="bold">
-                          Recorte Cuba Tramontina (600 x 450 mm)
-                        </text>
-
-                        {/* Furo de Torneira Ø35mm */}
-                        <circle cx="1400" cy="370" r="28" fill="#e7000b" stroke="#fff" strokeWidth="4" />
-                        <text x="1400" y="320" fill="#e7000b" fontSize="42" textAnchor="middle" fontWeight="bold">
-                          Ø 35mm
-                        </text>
-
-                        <text x="400" y="420" fill="#ca3500" fontSize="56" fontWeight="bold">
-                          BC-01 (Bancada Gourmet)
-                        </text>
-                        <text x="400" y="490" fill={isDark ? '#aba09c' : '#7c6d67'} fontSize="44">
-                          2600 x 650 mm • Esp. 20mm
-                        </text>
-                      </g>
-
-                      {/* SAIA FRONTAL SA-01 (45°) */}
-                      <g className="cursor-pointer" onClick={() => setSelectedPartId('part-3')}>
-                        <rect 
-                          x="100" 
-                          y="1050" 
-                          width="2600" 
-                          height="40" 
-                          fill={selectedPartId === 'part-3' ? '#f54900' : '#71717a'} 
-                          fillOpacity={selectedPartId === 'part-3' ? 0.4 : 0.2}
-                          stroke={selectedPartId === 'part-3' ? '#f54900' : '#a1a1aa'} 
-                          strokeWidth="4" 
-                        />
-                        <text x="1400" y="1080" fill="#f54900" fontSize="42" textAnchor="middle" fontWeight="bold">
-                          SA-01: Saia Frontal 45° (2600 x 40 mm)
-                        </text>
-                      </g>
-
-                      {/* COTA DE COMPRIMENTO TOTAL */}
-                      <line x1="100" y1="50" x2="2700" y2="50" stroke="#ca3500" strokeWidth="4" />
-                      <circle cx="100" cy="50" r="8" fill="#ca3500" />
-                      <circle cx="2700" cy="50" r="8" fill="#ca3500" />
-                      <text x="1400" y="40" fill="#ca3500" fontSize="48" textAnchor="middle" fontWeight="bold">
-                        2.600 mm (2,60 m)
-                      </text>
-                    </svg>
-                  </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-zinc-700 px-2 py-1">
+                  <ToolButton onClick={addRectangle}>Retângulo</ToolButton>
+                  <ToolButton onClick={addL}>Em L</ToolButton>
+                  <ToolButton onClick={insertHole}>Furo Ø 35</ToolButton>
+                  <ToolButton onClick={insertSink}>Cuba</ToolButton>
+                  <ToolButton onClick={undo}>Desfazer</ToolButton>
+                  <ToolButton onClick={redo}>Refazer</ToolButton>
+                  <span className="mx-1 h-4 w-px bg-zinc-700" />
+                  <ToolButton active={space === '2d'} onClick={() => setSpace('2d')}>2D</ToolButton>
+                  <ToolButton active={space === '3d'} onClick={() => setSpace('3d')}>3D</ToolButton>
+                  {editorNotice && <span className="px-2 text-[11px] text-primary">{editorNotice}</span>}
                 </div>
+                {space === '3d' ? (
+                  <AssemblyView placed={placed} selectedPartId={selectedPartId} onSelectPart={selectPart} />
+                ) : (
+                <PieceEditor
+                  placed={placed}
+                  selectedPartId={selectedPartId}
+                  selectedEdgeId={selectedEdgeId}
+                  onChange={setPlaced}
+                  onGestureStart={remember}
+                  onSelectPart={selectPart}
+                  onSelectEdge={(partId, edgeId) => {
+                    setSelectedPartId(partId);
+                    setSelectedEdgeId(edgeId);
+                  }}
+                  dimensionState={dimensionState}
+                  onDimension={setDimension}
+                />
+                )}
               </div>
-
               {/* PAINEL LATERAL DIREITO — PROPRIEDADES DA PEÇA SELECIONADA */}
-              <div className="w-80 bg-sidebar border-l border-sidebar-border flex flex-col p-4 overflow-y-auto">
-                <div className="flex items-center justify-between pb-3 border-b border-sidebar-border">
-                  <span className="text-xs font-semibold uppercase text-muted-foreground">Propriedades da Peça</span>
-                  <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+              <div className="flex w-80 flex-col overflow-y-auto border-l border-sidebar-border bg-sidebar p-4">
+                <div className="flex items-center justify-between border-b border-sidebar-border pb-3">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground">Leitura da peça</span>
+                  <span className="border border-primary/20 bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary">
                     {selectedPart.partCode}
                   </span>
                 </div>
+                <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                  A medida sai do desenho. Arraste o miolo para mover, a borda para esticar, a cuba e o furo para reposicionar. Arraste a cota para afastá-la; duplo clique ou o botão da borda a oculta.
+                </p>
 
                 <div className="mt-4 space-y-4 text-xs">
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">Identificação / Nome</label>
-                    <p className="font-semibold text-foreground mt-0.5">{selectedPart.name}</p>
+                  <div className="flex gap-1">
+                    {placed.map((item) => (
+                      <button
+                        key={item.part.id}
+                        type="button"
+                        onClick={() => selectPart(item.part.id)}
+                        className={`flex-1 border px-2 py-1.5 font-mono text-[10px] ${item.part.id === selectedPartId ? 'border-primary/50 bg-foreground/5 text-foreground' : 'border-border text-muted-foreground'}`}
+                      >
+                        {item.part.partCode}
+                      </button>
+                    ))}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 bg-card p-2.5 rounded-lg border border-border">
+                  <div>
+                    <p className="font-semibold text-foreground">{selectedPart.name}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{selectedPart.materialName}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 border border-border bg-card p-2.5">
                     <div>
-                      <span className="text-[10px] text-muted-foreground">Material</span>
-                      <p className="font-medium text-foreground mt-0.5">{selectedPart.materialName}</p>
+                      <span className="text-[10px] text-muted-foreground">Largura</span>
+                      <p className="mt-0.5 font-medium text-primary"><MaskedText mask="mm" unit="mm" value={selectedBox.width} /></p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">Profundidade</span>
+                      <p className="mt-0.5 font-medium text-primary"><MaskedText mask="mm" unit="mm" value={selectedBox.height} /></p>
                     </div>
                     <div>
                       <span className="text-[10px] text-muted-foreground">Espessura</span>
-                      <p className="font-medium text-primary mt-0.5">
-                        <MaskedText mask="mm" unit="mm" value={selectedPart.thicknessMm} />
+                      <p className="mt-0.5 font-medium text-foreground"><MaskedText mask="mm" unit="mm" value={selectedPart.thicknessMm} /></p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">Área líquida</span>
+                      <p className="mt-0.5 font-medium text-foreground"><MaskedText mask="decimal" unit="m²" value={(netAreaMm2(selectedPart) / 1_000_000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} /></p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="mb-2 block text-[11px] font-semibold text-foreground">Bordas</span>
+                    <div className="space-y-1.5">
+                      {selectedPart.edges.map((edge: EdgeSegment) => {
+                        const dimension = dimensionState[`${selectedPart.id}:${edge.id}`] ?? { offsetMm: 80, visible: true };
+                        return (
+                        <div
+                          key={edge.id}
+                          id={`edge-${selectedPart.id}-${edge.id}`}
+                          className={`flex w-full items-center justify-between border bg-card p-2 text-left ${selectedEdgeId === edge.id ? 'border-primary/60 shadow-[inset_2px_0_0_0_var(--primary)]' : 'border-border'}`}
+                        >
+                          <button type="button" onClick={() => setSelectedEdgeId(edge.id)} className="min-w-0 flex-1 text-left">
+                            <span className="font-mono text-[10px] font-bold text-primary">{edge.id.toUpperCase()}</span>
+                            <span className="mt-0.5 block text-[11px] text-foreground">{finishLabel[edge.finish]}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedEdgeId(edge.id);
+                              cycleFinish(edge.id);
+                            }}
+                            className="shrink-0 border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                          >
+                            trocar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDimension(selectedPart.id, edge.id, { offsetMm: dimension.offsetMm, visible: !dimension.visible })}
+                            className="ml-1 shrink-0 border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                          >
+                            {dimension.visible ? 'ocultar' : 'cota'}
+                          </button>
+                          <MaskedText mask="mm" unit="mm" value={edge.lengthMm} className="ml-2 font-mono font-semibold text-foreground" />
+                        </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {selectedPart.innerContours.map((opening) => (
+                    <div key={opening.id} className="border border-border bg-card p-2">
+                      <p className="text-[11px] text-foreground">{opening.label ?? 'Recorte'}</p>
+                      <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                        <MaskedText mask="mm" unit="mm" value={opening.widthMm} /> × <MaskedText mask="mm" unit="mm" value={opening.heightMm} />
                       </p>
                     </div>
-                  </div>
+                  ))}
 
-                  {/* BORDAS & ACABAMENTOS */}
-                  <div>
-                    <span className="text-[11px] font-semibold text-foreground block mb-2">
-                      Acabamentos de Borda ({selectedPart.edges.length})
-                    </span>
-                    <div className="space-y-1.5">
-                      {selectedPart.edges.map((edge: EdgeSegment) => (
-                        <div key={edge.id} className="p-2 rounded bg-card border border-border flex items-center justify-between shadow-2xs">
-                          <div>
-                            <span className="font-mono text-primary text-[10px] font-bold">{edge.id.toUpperCase()}</span>
-                            <p className="text-[11px] text-foreground capitalize">
-                              {edge.finish === 'miter_45' ? 'Meia-Esquadria 45°' : edge.finish === 'straight_polish' ? 'Polimento Reto' : 'Corte Bruto'}
-                            </p>
-                            {edge.notes && <p className="text-[10px] text-muted-foreground">{edge.notes}</p>}
-                          </div>
-                          <span className="font-mono text-foreground font-semibold">{edge.lengthMm} mm</span>
-                        </div>
-                      ))}
+                  {selectedPart.holes.map((hole: Hole) => (
+                    <div key={hole.id} className="border border-border bg-card p-2">
+                      <p className="text-[11px] text-foreground">{hole.label ?? 'Furo'}</p>
+                      <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                        Ø <MaskedText mask="mm" unit="mm" value={hole.diameterMm} /> · X <MaskedText mask="mm" unit="mm" value={hole.center.x} /> · Y <MaskedText mask="mm" unit="mm" value={hole.center.y} />
+                      </p>
                     </div>
-                  </div>
-
-                  {/* FUROS */}
-                  {selectedPart.holes.length > 0 && (
-                    <div>
-                      <span className="text-[11px] font-semibold text-foreground block mb-2">Furações Paramétricas</span>
-                      {selectedPart.holes.map((hole: Hole) => (
-                        <div key={hole.id} className="p-2 rounded bg-destructive/10 border border-destructive/20 flex items-center justify-between">
-                          <div>
-                            <p className="text-[11px] text-destructive font-medium">{hole.label}</p>
-                            <span className="text-[10px] text-muted-foreground">Centro: X={hole.center.x} Y={hole.center.y}</span>
-                          </div>
-                          <span className="font-mono text-destructive font-bold">Ø {hole.diameterMm} mm</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
             </div>
@@ -586,18 +622,18 @@ export default function App() {
                 <div className="bg-card p-6 rounded-xl border border-border shadow-xs">
                   <div className="text-xs text-muted-foreground mb-3 flex items-center justify-between">
                     <span>Chapa de Origem: CHP-2026-089 (Quartzito Calacatta 3000 x 1800 mm)</span>
-                    <span className="text-primary font-mono font-semibold">1 Retalho Gerado: 3000 x 950 mm</span>
+                    <span className="text-muted-foreground font-mono font-semibold">1 Retalho Gerado: <span className="text-primary">3000 x 950 mm</span></span>
                   </div>
 
                   {/* Desenho da Chapa com Peças Aninhadas */}
                   <div className="aspect-[30/18] bg-muted border-2 border-border rounded-lg relative overflow-hidden flex items-start justify-start p-2">
-                    <div className="bg-primary/20 border border-primary text-primary text-xs font-bold p-3 rounded absolute top-3 left-3 w-[80%] h-[35%] flex items-center justify-center">
+                    <div className="bg-foreground/5 border border-border border-l-2 border-l-primary text-foreground text-xs font-bold p-3 rounded absolute top-3 left-3 w-[80%] h-[35%] flex items-center justify-center">
                       BC-01 (Bancada Gourmet 2600 x 650 mm)
                     </div>
-                    <div className="bg-purple-500/20 border border-purple-500 text-purple-600 dark:text-purple-300 text-[11px] font-bold p-2 rounded absolute top-[40%] left-3 w-[80%] h-[9%] flex items-center justify-center">
+                    <div className="bg-foreground/5 border border-border text-muted-foreground text-[11px] font-bold p-2 rounded absolute top-[40%] left-3 w-[80%] h-[9%] flex items-center justify-center">
                       FR-01 (Frontão 2600 x 150 mm)
                     </div>
-                    <div className="bg-amber-500/20 border border-amber-500 text-amber-600 dark:text-amber-300 text-[9px] font-bold rounded absolute top-[51%] left-3 w-[80%] h-[3%] flex items-center justify-center">
+                    <div className="bg-foreground/5 border border-border text-muted-foreground text-[9px] font-bold rounded absolute top-[51%] left-3 w-[80%] h-[3%] flex items-center justify-center">
                       SA-01 (Saia 45°)
                     </div>
                     <div className="absolute bottom-3 right-3 text-right bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 p-2 rounded text-[11px]">
@@ -615,7 +651,7 @@ export default function App() {
               <div className="max-w-4xl mx-auto space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold text-foreground">Chapas e Sobras Disponíveis no Pátio</h3>
-                  <button className="bg-primary hover:opacity-90 text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer shadow-xs">
+                  <button className="border border-border bg-foreground/5 hover:border-primary/50 text-foreground px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
                     + Cadastrar Chapa / Retalho
                   </button>
                 </div>
@@ -660,7 +696,7 @@ export default function App() {
                     <h3 className="text-base font-bold text-foreground">Exportação de Pranchas Técnicas de Fabricação</h3>
                     <p className="text-xs text-muted-foreground mt-1">Gere PDFs de alta fidelidade para o serrador e acabador</p>
                   </div>
-                  <button className="bg-primary hover:opacity-90 text-primary-foreground px-4 py-2 rounded-lg text-xs font-bold shadow-xs cursor-pointer">
+                  <button className="border border-border bg-foreground/5 hover:border-primary/50 text-foreground px-4 py-2 rounded-lg text-xs font-bold cursor-pointer">
                     Gerar PDF Vetorial (A4/A3)
                   </button>
                 </div>
@@ -685,5 +721,17 @@ export default function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+function ToolButton({ children, onClick, active = false }: { children: string; onClick: () => void; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`border px-2 py-1 text-[11px] ${active ? 'border-primary/60 bg-primary/10 text-primary' : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-primary/50'}`}
+    >
+      {children}
+    </button>
   );
 }
