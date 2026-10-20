@@ -39,6 +39,11 @@ ScaffoldingReadMe.txt
 # dotenv environment variables file
 .env
 
+# SQLite de desenvolvimento (fallback local)
+*.db
+*.db-shm
+*.db-wal
+
 # Others
 ~$*
 *~

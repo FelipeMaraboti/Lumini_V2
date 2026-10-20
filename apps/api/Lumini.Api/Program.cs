@@ -28,9 +28,20 @@ const string JwtAudience = "LuminiWeb";
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Host=localhost;Port=5432;Database=lumini_v2_db;Username=lumini_user;Password=lumini_password_dev_2026";
 
+// Fallback SQLite apenas em Development quando o PostgreSQL do docker-compose não está disponível.
+var useSqliteFallback = builder.Environment.IsDevelopment()
+    && builder.Configuration.GetValue("UseSqliteFallback", false);
+
 builder.Services.AddDbContext<LuminiDbContext>(options =>
 {
-    options.UseNpgsql(connectionString, b => b.MigrationsAssembly("Lumini.Infrastructure"));
+    if (useSqliteFallback)
+    {
+        options.UseSqlite("Data Source=lumini_dev.db");
+    }
+    else
+    {
+        options.UseNpgsql(connectionString, b => b.MigrationsAssembly("Lumini.Infrastructure"));
+    }
 });
 
 builder.Services.AddScoped<DbContext>(sp => sp.GetRequiredService<LuminiDbContext>());
@@ -125,18 +136,26 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Aplica migrations automaticamente em Development (falha soft se o PostgreSQL estiver offline)
+// Bootstrap do schema em Development
 if (app.Environment.IsDevelopment())
 {
     try
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<LuminiDbContext>();
-        await db.Database.MigrateAsync();
+        if (useSqliteFallback)
+        {
+            await db.Database.EnsureCreatedAsync();
+            app.Logger.LogWarning("Usando SQLite de desenvolvimento (lumini_dev.db). Suba o PostgreSQL via docker-compose para o ambiente canônico.");
+        }
+        else
+        {
+            await db.Database.MigrateAsync();
+        }
     }
     catch (Exception ex)
     {
-        app.Logger.LogWarning(ex, "PostgreSQL indisponível — migrations não aplicadas. Suba o docker-compose e reinicie a API.");
+        app.Logger.LogWarning(ex, "Banco indisponível — schema não aplicado. Suba o docker-compose e reinicie a API.");
     }
 }
 

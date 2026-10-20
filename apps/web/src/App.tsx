@@ -8,8 +8,6 @@ import {
   Package, 
   FloppyDisk, 
   Check,
-  Sun,
-  Moon,
   Ruler,
   SignOut,
   Users,
@@ -17,22 +15,26 @@ import {
 } from '@phosphor-icons/react';
 import type { Part, EdgeSegment, Hole } from '@lumini/geometry-core';
 import { useAuth } from '@/features/auth/AuthContext';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { MaskedText } from '@/components/ui/MaskedText';
 
 export default function App() {
   const { user, logout, hasAnyPermission } = useAuth();
-  const [isDark, setIsDark] = useState<boolean>(true);
+  const [isDark, setIsDark] = useState(() => {
+    const stored = localStorage.getItem('lumini_theme');
+    return stored ? stored === 'dark' : true;
+  });
   const [activeTab, setActiveTab] = useState<'drawing' | 'pricing' | 'cutting' | 'inventory' | 'documents'>('drawing');
   const [selectedPartId, setSelectedPartId] = useState<string>('part-1');
 
-  // Controle de tema Dark/Light
+  // Sincroniza com ThemeToggle / localStorage
   useEffect(() => {
-    const root = document.documentElement;
-    if (isDark) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [isDark]);
+    const sync = () => setIsDark(document.documentElement.classList.contains('dark'));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Exemplo de peças reais modeladas no formato canônico da marmoraria
   const demoParts: Part[] = [
@@ -127,16 +129,16 @@ export default function App() {
   const selectedPart = demoParts.find(p => p.id === selectedPartId) || demoParts[0];
 
   return (
-    <div className="flex h-screen w-screen bg-background text-foreground font-sans overflow-hidden transition-colors duration-200">
+    <div className="flex h-screen w-screen bg-background text-foreground font-sans overflow-hidden transition-colors duration-200 antialiased">
       {/* SIDEBAR NAVEGAÇÃO PRINCIPAL */}
       <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col justify-between shrink-0 shadow-sm">
         <div>
           {/* Logo Oficial da Lumini com suporte a Dark/Light */}
           <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img 
-                src={isDark ? '/assets/logo-dark.png' : '/assets/logo-light.png'} 
-                alt="Lumini" 
+              <img
+                src={isDark ? '/assets/logo-dark.png' : '/assets/logo-light.png'}
+                alt="Lumini"
                 className="h-8 max-w-[130px] object-contain"
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
@@ -146,15 +148,7 @@ export default function App() {
                 V2
               </span>
             </div>
-
-            {/* Alternador de Tema Dark / Light */}
-            <button 
-              onClick={() => setIsDark(!isDark)}
-              title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-all cursor-pointer"
-            >
-              {isDark ? <Sun size={18} weight="bold" className="text-amber-400" /> : <Moon size={18} weight="bold" className="text-primary" />}
-            </button>
+            <ThemeToggle />
           </div>
 
           {/* Contexto do Projeto Ativo */}
@@ -256,9 +250,9 @@ export default function App() {
               <SignOut size={14} /> Sair
             </button>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono tracking-wide">
             <span>v2.0-sprint1</span>
-            <span className="capitalize">{isDark ? 'Dark' : 'Light'}</span>
+            <span>{isDark ? 'Dark' : 'Light'}</span>
           </div>
         </div>
       </aside>
@@ -445,7 +439,9 @@ export default function App() {
                     </div>
                     <div>
                       <span className="text-[10px] text-muted-foreground">Espessura</span>
-                      <p className="font-medium text-primary mt-0.5">{selectedPart.thicknessMm} mm</p>
+                      <p className="font-medium text-primary mt-0.5">
+                        <MaskedText mask="mm" value={selectedPart.thicknessMm} /> mm
+                      </p>
                     </div>
                   </div>
 
@@ -502,7 +498,9 @@ export default function App() {
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-muted-foreground">Valor Total Líquido</span>
-                    <p className="text-2xl font-mono font-extrabold text-emerald-500">R$ 4.850,00</p>
+                    <p className="text-2xl font-mono font-extrabold text-emerald-500">
+                      <MaskedText mask="currency" value={4850} />
+                    </p>
                   </div>
                 </div>
 
@@ -607,8 +605,12 @@ export default function App() {
                       <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded font-semibold">Disponível</span>
                     </div>
                     <p className="font-semibold text-foreground">Quartzito Calacatta Prime 20mm</p>
-                    <p className="text-xs text-muted-foreground font-mono">Dimensões: 3000 x 1800 mm (5,40 m²)</p>
-                    <p className="text-[11px] text-muted-foreground">Lote: 2026-ES-04 • Cavalete 03-B</p>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      Dimensões: <MaskedText mask="mm" value={3000} /> x <MaskedText mask="mm" value={1800} /> mm
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Placa veículo: <MaskedText mask="placa" value="ABC1D23" className="font-mono" /> · Cavalete 03-B
+                    </p>
                   </div>
                   <div className="bg-card p-4 rounded-xl border border-border space-y-2 shadow-2xs">
                     <div className="flex justify-between items-start">
@@ -616,8 +618,12 @@ export default function App() {
                       <span className="text-[10px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded font-semibold">Retalho / Sobra</span>
                     </div>
                     <p className="font-semibold text-foreground">Granito Preto São Gabriel 20mm</p>
-                    <p className="text-xs text-muted-foreground font-mono">Dimensões: 1800 x 750 mm (1,35 m²)</p>
-                    <p className="text-[11px] text-muted-foreground">Origem: Pedido #841 • Prateleira Retalhos 2</p>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      Dimensões: <MaskedText mask="mm" value={1800} /> x <MaskedText mask="mm" value={750} /> mm
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Contato: <MaskedText mask="phone" value="11999887766" />
+                    </p>
                   </div>
                 </div>
               </div>
