@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { 
   Compass, 
@@ -15,7 +15,7 @@ import {
   Folder,
   Palette
 } from '@phosphor-icons/react';
-import { addHole, addSink, boundsOf, lPart, netAreaMm2, rectanglePart, snapMm, type EdgeFinishType, type EdgeSegment, type Hole, type Part } from '@lumini/geometry-core';
+import { addHole, addOvalSink, addSink, boundsOf, lPart, netAreaMm2, polygonPart, rectanglePart, snapMm, type EdgeFinishType, type EdgeSegment, type Hole, type Part, type Point2D } from '@lumini/geometry-core';
 import { useAuth } from '@/features/auth/AuthContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { MaskedText } from '@/components/ui/MaskedText';
@@ -66,6 +66,9 @@ export default function App() {
   const [placed, setPlaced] = useState<PlacedPart[]>(() => isProjectDrawing ? [] : initialKitchen());
   const [editorNotice, setEditorNotice] = useState<string | null>(null);
   const [dimensionState, setDimensionState] = useState<Record<string, DimensionOverride>>({});
+  const [polygonDrawing, setPolygonDrawing] = useState(false);
+  const [polygonPoints, setPolygonPoints] = useState<Point2D[]>([]);
+  const [benchmarkReport, setBenchmarkReport] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState<'loading' | 'recovery' | 'ready' | 'saving' | 'saved' | 'error' | 'conflict' | 'readonly'>('loading');
   const [recoverableDraft, setRecoverableDraft] = useState<Awaited<ReturnType<typeof readEditorDraft>>>(null);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
@@ -75,6 +78,7 @@ export default function App() {
   const savedSnapshotRef = useRef<string | null>(null);
   const serverConflictRef = useRef(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const benchmarkRef = useRef<{ startedAt: number; original: PlacedPart[]; originalSelectedId: string } | null>(null);
   const [space, setSpace] = useState<'2d' | '3d'>('2d');
   const placedRef = useRef(placed);
   const pastRef = useRef<PlacedPart[][]>([]);
@@ -165,6 +169,7 @@ export default function App() {
 
   useEffect(() => {
     if (!draftKey || draftLoadedForKey !== draftKey || !autosaveEnabled) return;
+    if (benchmarkRef.current) return;
     const snapshot = { schemaVersion: 1 as const, placed, dimensionState };
     const serializedSnapshot = JSON.stringify(snapshot);
     if (isProjectDrawing && serializedSnapshot === savedSnapshotRef.current) return;
@@ -212,6 +217,32 @@ export default function App() {
     }, 1000);
     return () => window.clearTimeout(timeout);
   }, [draftKey, draftLoadedForKey, autosaveEnabled, placed, dimensionState, isProjectDrawing, drawingRevision?.id, projectId, serverAutosaveEnabled]);
+
+  useLayoutEffect(() => {
+    const benchmark = benchmarkRef.current;
+    if (!benchmark || placed.length !== 60) return;
+    const commitMs = performance.now() - benchmark.startedAt;
+    const frames: number[] = [];
+    let previousFrame = performance.now();
+    let frameCount = 0;
+    const sampleFrame = (now: number) => {
+      frames.push(now - previousFrame);
+      previousFrame = now;
+      frameCount += 1;
+      if (frameCount < 60) {
+        requestAnimationFrame(sampleFrame);
+        return;
+      }
+      const sorted = [...frames].sort((a, b) => a - b);
+      const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1] ?? 0;
+      const average = frames.reduce((sum, value) => sum + value, 0) / frames.length;
+      setBenchmarkReport(`60 peças · commit ${commitMs.toFixed(1)} ms · frame médio ${average.toFixed(1)} ms · p95 ${p95.toFixed(1)} ms`);
+      benchmarkRef.current = null;
+      setPlaced(benchmark.original);
+      setSelectedPartId(benchmark.originalSelectedId);
+    };
+    requestAnimationFrame(sampleFrame);
+  }, [placed]);
 
   function recoverDraft() {
     if (!recoverableDraft) return;
@@ -314,6 +345,7 @@ export default function App() {
       materialId: source.materialId,
       materialName: source.materialName,
       thicknessMm: source.thicknessMm,
+      colorHex: source.colorHex,
     }, 1200, 600));
   }
 
@@ -327,6 +359,7 @@ export default function App() {
       materialId: material.id,
       materialName: material.name,
       thicknessMm: newThicknessMm,
+      colorHex: material.colorHex,
     }, newWidthMm, newDepthMm);
     setPlaced([{ xMm: 0, yMm: 0, part }]);
     setSelectedPartId(part.id);
@@ -343,6 +376,7 @@ export default function App() {
       materialId: source.materialId,
       materialName: source.materialName,
       thicknessMm: source.thicknessMm,
+      colorHex: source.colorHex,
     }, 1800, 1400, 600));
   }
 
@@ -372,6 +406,80 @@ export default function App() {
     remember();
     setPlaced(current.map((entry) => (entry.part.id === part.id ? { ...entry, part } : entry)));
     setEditorNotice(null);
+  }
+
+  function insertOvalSink() {
+    const current = placedRef.current;
+    const item = current.find((entry) => entry.part.id === selectedPartId);
+    if (!item) return;
+    const part = addOvalSink(item.part);
+    if (!part) {
+      setEditorNotice('A cuba oval de 500 × 350 mm não cabe com a margem de 15 mm.');
+      return;
+    }
+    remember();
+    setPlaced(current.map((entry) => (entry.part.id === part.id ? { ...entry, part } : entry)));
+    setEditorNotice(null);
+  }
+
+  function startPolygon() {
+    setSpace('2d');
+    setPolygonPoints([]);
+    setPolygonDrawing(true);
+    setEditorNotice('Clique no canvas para adicionar vértices; conclua com “Finalizar contorno”.');
+  }
+
+  function finishPolygon() {
+    const source = placedRef.current.find((item) => item.part.id === selectedPartId)?.part ?? placedRef.current[0]?.part;
+    if (!source) return;
+    const part = polygonPart({
+      id: crypto.randomUUID(),
+      partCode: nextCode('PC'),
+      name: 'Contorno personalizado',
+      materialId: source.materialId,
+      materialName: source.materialName,
+      thicknessMm: source.thicknessMm,
+    }, polygonPoints);
+    if (!part) {
+      setEditorNotice('Contorno inválido. Use ao menos 3 vértices, com área e sem cruzamentos.');
+      return;
+    }
+    const origin = boundsOf(polygonPoints);
+    remember();
+    setPlaced([...placedRef.current, { xMm: origin.minX, yMm: origin.minY, part }]);
+    setSelectedPartId(part.id);
+    setSelectedEdgeId(part.edges[0]?.id ?? null);
+    setPolygonPoints([]);
+    setPolygonDrawing(false);
+    setEditorNotice(null);
+  }
+
+  function cancelPolygon() {
+    setPolygonPoints([]);
+    setPolygonDrawing(false);
+    setEditorNotice(null);
+  }
+
+  function runCanvasBenchmark() {
+    const source = placedRef.current[0]?.part;
+    if (!source || isProjectDrawing || polygonDrawing) return;
+    const original = structuredClone(placedRef.current);
+    const benchmarkParts = Array.from({ length: 60 }, (_, index) => {
+      const part = rectanglePart({
+        id: `benchmark-${index + 1}`,
+        partCode: `TST-${String(index + 1).padStart(2, '0')}`,
+        name: 'Peça de benchmark',
+        materialId: source.materialId,
+        materialName: source.materialName,
+        thicknessMm: source.thicknessMm,
+        colorHex: source.colorHex,
+      }, 600, 400);
+      return { xMm: (index % 10) * 680, yMm: Math.floor(index / 10) * 480, part };
+    });
+    setBenchmarkReport(null);
+    benchmarkRef.current = { startedAt: performance.now(), original, originalSelectedId: selectedPartId };
+    setPlaced(benchmarkParts);
+    setSelectedPartId(benchmarkParts[0].part.id);
   }
 
   function cycleFinish(edgeId: string) {
@@ -710,14 +818,21 @@ export default function App() {
                 <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-zinc-700 px-2 py-1">
                   <ToolButton disabled={editorReadOnly} onClick={addRectangle}>Retângulo</ToolButton>
                   <ToolButton disabled={editorReadOnly} onClick={addL}>Em L</ToolButton>
+                  <ToolButton disabled={editorReadOnly} active={polygonDrawing} onClick={polygonDrawing ? cancelPolygon : startPolygon}>Polígono livre</ToolButton>
+                  {polygonDrawing && <ToolButton disabled={editorReadOnly || polygonPoints.length < 3} onClick={finishPolygon}>Finalizar contorno</ToolButton>}
                   <ToolButton disabled={editorReadOnly} onClick={insertHole}>Furo Ø 35</ToolButton>
                   <ToolButton disabled={editorReadOnly} onClick={insertSink}>Cuba</ToolButton>
+                  <ToolButton disabled={editorReadOnly} onClick={insertOvalSink}>Cuba oval</ToolButton>
                   <ToolButton disabled={editorReadOnly} onClick={undo}>Desfazer</ToolButton>
                   <ToolButton disabled={editorReadOnly} onClick={redo}>Refazer</ToolButton>
+                  {import.meta.env.DEV && !isProjectDrawing && (
+                    <ToolButton onClick={runCanvasBenchmark}>Benchmark 60</ToolButton>
+                  )}
                   <span className="mx-1 h-4 w-px bg-zinc-700" />
                   <ToolButton active={space === '2d'} onClick={() => setSpace('2d')}>2D</ToolButton>
                   <ToolButton active={space === '3d'} onClick={() => setSpace('3d')}>3D</ToolButton>
                   {editorNotice && <span className="px-2 text-[11px] text-primary">{editorNotice}</span>}
+                  {benchmarkReport && <span role="status" className="px-2 text-[11px] text-emerald-400">{benchmarkReport}</span>}
                 </div>
                 {space === '3d' ? (
                   <AssemblyView placed={placed} selectedPartId={selectedPartId} onSelectPart={selectPart} />
@@ -735,6 +850,9 @@ export default function App() {
                   }}
                   dimensionState={dimensionState}
                   readOnly={editorReadOnly}
+                  polygonDrawing={polygonDrawing}
+                  polygonPoints={polygonPoints}
+                  onPolygonPoint={(point) => setPolygonPoints((current) => [...current, point])}
                   onDimension={setDimension}
                 />
                 )}

@@ -17,10 +17,12 @@ interface AssemblyViewProps {
 
 export function AssemblyView({ placed, selectedPartId, onSelectPart }: AssemblyViewProps) {
   const poses = useMemo(() => layoutAssembly(placed), [placed]);
+  const captureRef = useRef<(() => Promise<void>) | null>(null);
   const selected = placed.find((item) => item.part.id === selectedPartId) ?? placed[0];
   const selectedBox = selected ? boundsOf(selected.part.outerContour) : null;
   const [measuring, setMeasuring] = useState(false);
   const [marks, setMarks] = useState<Mark[]>([]);
+  const [captureStatus, setCaptureStatus] = useState<string | null>(null);
   const distance = marks.length === 2 ? spanMm(marks[0], marks[1]) : null;
 
   function markPoint(point: Mark) {
@@ -56,6 +58,7 @@ export function AssemblyView({ placed, selectedPartId, onSelectPart }: AssemblyV
         <RulerMarks marks={marks} />
         <gridHelper args={[8000, 80, '#3f3f46', '#27272a']} position={[1300, -48, -320]} />
         <OrbitRig measuring={measuring} />
+        <SceneCapture captureRef={captureRef} />
       </Canvas>
       <div className="absolute left-3 top-3 border border-zinc-700 bg-[#16181e]/90 px-3 py-2 text-[11px] text-zinc-300">
         <div className="flex items-center gap-2">
@@ -69,6 +72,24 @@ export function AssemblyView({ placed, selectedPartId, onSelectPart }: AssemblyV
             className={`border px-2 py-0.5 font-mono text-[10px] ${measuring ? 'border-primary/60 bg-primary/10 text-primary' : 'border-zinc-600 text-zinc-200'}`}
           >
             Régua
+          </button>
+          {marks.length > 0 && (
+            <button type="button" onClick={() => setMarks([])} className="border border-zinc-600 px-2 py-0.5 font-mono text-[10px] text-zinc-200">
+              Limpar
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={!placed.length}
+            onClick={() => {
+              setCaptureStatus('Capturando…');
+              void captureRef.current?.()
+                .then(() => setCaptureStatus('PNG 2× baixado'))
+                .catch(() => setCaptureStatus('Falha ao capturar a cena'));
+            }}
+            className="border border-zinc-600 px-2 py-0.5 font-mono text-[10px] text-zinc-200 disabled:opacity-50"
+          >
+            Capturar PNG 2×
           </button>
         </div>
         {selected && selectedBox && (
@@ -86,9 +107,67 @@ export function AssemblyView({ placed, selectedPartId, onSelectPart }: AssemblyV
             Distância <MaskedText mask="mm" unit="mm" value={distance} />
           </p>
         )}
+        {captureStatus && <p className="pointer-events-none mt-1 text-primary">{captureStatus}</p>}
       </div>
     </div>
   );
+}
+
+function SceneCapture({ captureRef }: { captureRef: React.MutableRefObject<(() => Promise<void>) | null> }) {
+  const { gl, scene, camera } = useThree();
+
+  useEffect(() => {
+    captureRef.current = async () => {
+      const sourceWidth = gl.domElement.width;
+      const sourceHeight = gl.domElement.height;
+      const maxTextureSize = gl.capabilities.maxTextureSize;
+      const scale = Math.min(2, maxTextureSize / sourceWidth, maxTextureSize / sourceHeight);
+      const width = Math.max(1, Math.floor(sourceWidth * scale));
+      const height = Math.max(1, Math.floor(sourceHeight * scale));
+      const target = new THREE.WebGLRenderTarget(width, height, {
+        format: THREE.RGBAFormat,
+        type: THREE.UnsignedByteType,
+        depthBuffer: true,
+      });
+      const pixels = new Uint8Array(width * height * 4);
+      const previousTarget = gl.getRenderTarget();
+      try {
+        gl.setRenderTarget(target);
+        gl.render(scene, camera);
+        gl.readRenderTargetPixels(target, 0, 0, width, height, pixels);
+      } finally {
+        gl.setRenderTarget(previousTarget);
+        target.dispose();
+      }
+
+      const output = document.createElement('canvas');
+      output.width = width;
+      output.height = height;
+      const context = output.getContext('2d');
+      if (!context) throw new Error('Canvas 2D indisponível para converter a captura.');
+      const image = context.createImageData(width, height);
+      const rowSize = width * 4;
+      for (let row = 0; row < height; row += 1) {
+        const sourceStart = (height - row - 1) * rowSize;
+        image.data.set(pixels.subarray(sourceStart, sourceStart + rowSize), row * rowSize);
+      }
+      context.putImageData(image, 0, 0);
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        output.toBlob((value) => value ? resolve(value) : reject(new Error('Não foi possível gerar o PNG.')), 'image/png');
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `lumini-montagem-${new Date().toISOString().replaceAll(':', '-')}.png`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    };
+    return () => {
+      captureRef.current = null;
+    };
+  }, [camera, captureRef, gl, scene]);
+
+  return null;
 }
 
 function OrbitRig({ measuring }: { measuring: boolean }) {
@@ -171,7 +250,7 @@ function StonePiece({
     [cut.bands, part.thicknessMm, pose.role],
   );
   const surface = stoneSurface(part);
-  const texture = useMemo(() => calacattaTexture(), []);
+  const texture = useMemo(() => stoneTexture(part.materialName, part.colorHex), [part.materialName, part.colorHex]);
   useEffect(() => () => {
     geometry.dispose();
     profiles.forEach((profile) => profile.dispose());
@@ -189,11 +268,11 @@ function StonePiece({
   return (
     <group position={pose.position} rotation={pose.rotation}>
       <mesh geometry={geometry} onClick={pick}>
-        <StoneMaterial texture={texture} polished={surface === 'polished'} selected={selected} />
+        <StoneMaterial texture={texture} baseColor={part.colorHex ?? '#f4ece3'} polished={surface === 'polished'} selected={selected} />
       </mesh>
       {profiles.map((profile) => (
         <mesh key={profile.uuid} geometry={profile} onClick={pick}>
-          <StoneMaterial texture={null} polished={surface === 'polished'} selected={selected} flat />
+          <StoneMaterial texture={null} baseColor={part.colorHex ?? '#f4ece3'} polished={surface === 'polished'} selected={selected} flat />
         </mesh>
       ))}
     </group>
@@ -202,18 +281,20 @@ function StonePiece({
 
 function StoneMaterial({
   texture,
+  baseColor,
   polished,
   selected,
   flat = false,
 }: {
   texture: THREE.CanvasTexture | null;
+  baseColor: string;
   polished: boolean;
   selected: boolean;
   flat?: boolean;
 }) {
   return (
     <meshPhysicalMaterial
-      color="#f4ece3"
+      color={baseColor}
       map={texture}
       flatShading={flat}
       roughness={flat ? 0.42 : polished ? 0.16 : 0.82}
@@ -226,28 +307,44 @@ function StoneMaterial({
   );
 }
 
-let sharedStone: THREE.CanvasTexture | null | undefined;
+const stoneTextures = new Map<string, THREE.CanvasTexture | null>();
 
-function calacattaTexture() {
-  if (sharedStone !== undefined) return sharedStone;
+function stoneTexture(materialName: string, colorHex = '#f4ece3') {
+  const key = `${materialName.toLowerCase()}:${colorHex}`;
+  if (stoneTextures.has(key)) return stoneTextures.get(key) ?? null;
   const canvas = document.createElement('canvas');
   canvas.width = 1024;
   canvas.height = 1024;
   const context = canvas.getContext('2d');
   if (!context) {
-    sharedStone = null;
+    stoneTextures.set(key, null);
     return null;
   }
-  context.fillStyle = '#f4ece3';
+  context.fillStyle = colorHex;
   context.fillRect(0, 0, 1024, 1024);
-  const random = mulberry32(42);
-  for (let vein = 0; vein < 6; vein += 1) {
-    context.beginPath();
-    context.moveTo(random() * 1024, -20);
-    context.bezierCurveTo(random() * 1024, 280, random() * 1024, 640, random() * 1024, 1060);
-    context.strokeStyle = vein % 2 === 0 ? 'rgba(120, 108, 96, 0.28)' : 'rgba(255,255,255,0.35)';
-    context.lineWidth = vein % 2 === 0 ? 2 : 8;
-    context.stroke();
+  const seed = [...key].reduce((value, character) => Math.imul(value ^ character.charCodeAt(0), 16777619), 2166136261) >>> 0;
+  const random = mulberry32(seed);
+  const isGranite = /granite|granito/i.test(materialName);
+  if (isGranite) {
+    for (let fleck = 0; fleck < 1800; fleck += 1) {
+      const light = random() > 0.52;
+      context.fillStyle = light ? 'rgba(255,255,255,0.3)' : 'rgba(20,20,20,0.22)';
+      const radius = 0.5 + random() * 2.2;
+      context.beginPath();
+      context.ellipse(random() * 1024, random() * 1024, radius, radius * (0.5 + random()), random() * Math.PI, 0, Math.PI * 2);
+      context.fill();
+    }
+  } else {
+    const veinColor = /marble|mármore/i.test(materialName) ? 'rgba(70,65,60,0.38)' : 'rgba(105,99,91,0.28)';
+    for (let vein = 0; vein < 9; vein += 1) {
+      const startX = random() * 1024;
+      context.beginPath();
+      context.moveTo(startX, -30);
+      context.bezierCurveTo(random() * 1024, 280, random() * 1024, 640, random() * 1024, 1060);
+      context.strokeStyle = vein % 3 === 0 ? 'rgba(255,255,255,0.42)' : veinColor;
+      context.lineWidth = vein % 3 === 0 ? 5 + random() * 8 : 1 + random() * 4;
+      context.stroke();
+    }
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -255,7 +352,7 @@ function calacattaTexture() {
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(1 / 700, 1 / 700);
   texture.anisotropy = 8;
-  sharedStone = texture;
+  stoneTextures.set(key, texture);
   return texture;
 }
 

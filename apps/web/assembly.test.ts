@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { boundsOf, polygonAreaMm2, type Part } from '../../packages/geometry-core/src/index.ts';
+import { boundsOf, polygonAreaMm2 } from '../../packages/geometry-core/src/edit.ts';
+import type { Part } from '../../packages/geometry-core/src/index.ts';
 import { assemblyRole, edgeBands, layoutAssembly, spanMm, stoneSurface } from './src/editor3d/assembly.ts';
 
 function part(id: string, code: string, width: number, height: number): Part {

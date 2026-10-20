@@ -1,4 +1,5 @@
-import { boundsOf, polygonAreaMm2, type EdgeFinishType, type Part, type Point2D } from '@lumini/geometry-core';
+import { boundsOf, polygonAreaMm2 } from '../../../../packages/geometry-core/src/edit.ts';
+import type { EdgeFinishType, Part, Point2D } from '../../../../packages/geometry-core/src/index.ts';
 
 export type AssemblyRole = 'top' | 'splash' | 'skirt';
 

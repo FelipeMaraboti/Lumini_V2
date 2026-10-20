@@ -54,6 +54,9 @@ interface PieceEditorProps {
   onSelectEdge: (partId: string, edgeId: string) => void;
   onGestureStart?: () => void;
   readOnly?: boolean;
+  polygonDrawing?: boolean;
+  polygonPoints?: Point2D[];
+  onPolygonPoint?: (point: Point2D) => void;
   dimensionState: Record<string, DimensionOverride>;
   onDimension: (partId: string, edgeId: string, next: DimensionOverride) => void;
 }
@@ -88,6 +91,9 @@ export function PieceEditor({
   onSelectEdge,
   onGestureStart,
   readOnly = false,
+  polygonDrawing = false,
+  polygonPoints = [],
+  onPolygonPoint,
   dimensionState,
   onDimension,
 }: PieceEditorProps) {
@@ -267,6 +273,11 @@ export function PieceEditor({
 
   function onPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     const mm = toMm(event);
+    if (polygonDrawing && !readOnly) {
+      event.preventDefault();
+      onPolygonPoint?.({ x: snapMm(mm.x), y: snapMm(mm.y) });
+      return;
+    }
     const target = hit(mm);
     if (readOnly && target.kind !== 'pan') {
       if (target.kind === 'part' || target.kind === 'edge' || target.kind === 'hole' || target.kind === 'opening' || target.kind === 'opening-edge' || target.kind === 'dimension') {
@@ -561,6 +572,20 @@ export function PieceEditor({
             </g>
           );
         })}
+        {polygonDrawing && polygonPoints.length > 0 && (
+          <g style={{ pointerEvents: 'none' }}>
+            <polyline
+              points={polygonPoints.map((point) => `${point.x},${point.y}`).join(' ')}
+              fill="rgba(249,115,22,0.12)"
+              stroke="#f97316"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+            {polygonPoints.map((point, index) => (
+              <circle key={`${point.x}-${point.y}-${index}`} cx={point.x} cy={point.y} r={8 * mmPerPx} fill="#f97316" />
+            ))}
+          </g>
+        )}
         {selectedItem &&
           selectedItem.part.edges.map((edge) => {
             const state = dimensionOverride(selectedItem.part.id, edge.id);

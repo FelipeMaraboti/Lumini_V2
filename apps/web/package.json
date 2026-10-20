@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "tsx --tsconfig tsconfig.test.json assembly.test.ts && tsx --tsconfig tsconfig.test.json ../../packages/geometry-core/edit.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "oxlint": "^1.88.0",
     "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "~7.0.2",
     "vite": "^8.3.4"
   }

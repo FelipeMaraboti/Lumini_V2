@@ -313,6 +313,7 @@ export interface PartBlank {
   materialId: string;
   materialName: string;
   thicknessMm: number;
+  colorHex?: string;
 }
 
 export function rectanglePart(blank: PartBlank, widthMm: number, heightMm: number): Part {
@@ -340,6 +341,27 @@ export function lPart(blank: PartBlank, widthMm: number, depthMm: number, armMm:
     { x: 0, y: depth },
   ];
   return { ...blank, outerContour, edges: contourEdges(outerContour), holes: [], innerContours: [] };
+}
+
+export function polygonPart(blank: PartBlank, points: Point2D[]): Part | null {
+  if (points.length < 3 || points.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y))) return null;
+  const snapped = points.map((point) => ({ x: snapMm(point.x), y: snapMm(point.y) }));
+  const withoutDuplicateClose = snapped.length > 3 && samePoint(snapped[0], snapped[snapped.length - 1])
+    ? snapped.slice(0, -1)
+    : snapped;
+  const compact = withoutDuplicateClose.filter((point, index, list) => !samePoint(point, list[(index + 1) % list.length]));
+  if (compact.length < 3 || hasSelfIntersection(compact)) return null;
+  if (polygonAreaMm2(compact) < MIN_SPAN_MM * MIN_SPAN_MM) return null;
+
+  const bounds = boundsOf(compact);
+  if (bounds.width < MIN_SPAN_MM || bounds.height < MIN_SPAN_MM) return null;
+  const outerContour = compact.map((point) => ({ x: point.x - bounds.minX, y: point.y - bounds.minY }));
+  const part: Part = { ...blank, outerContour, edges: contourEdges(outerContour), holes: [], innerContours: [] };
+  return hasSelfIntersection(outerContour) ? null : part;
+}
+
+function samePoint(first: Point2D, second: Point2D): boolean {
+  return first.x === second.x && first.y === second.y;
 }
 
 export function addHole(part: Part, diameterMm = 35): Part | null {
@@ -398,4 +420,56 @@ export function addSink(part: Part, widthMm = 500, heightMm = 350): Part | null 
     }
   }
   return null;
+}
+
+export function addOvalSink(part: Part, widthMm = 500, heightMm = 350): Part | null {
+  const box = boundsOf(part.outerContour);
+  const width = snapMm(widthMm);
+  const height = snapMm(heightMm);
+  if (width < 80 || height < 80) return null;
+
+  const roomX = box.width - width - STONE_MARGIN_MM * 2;
+  const roomY = box.height - height - STONE_MARGIN_MM * 2;
+  if (roomX < 0 || roomY < 0) return null;
+
+  for (let y = box.minY + STONE_MARGIN_MM; y <= box.minY + STONE_MARGIN_MM + roomY; y += 40) {
+    for (let x = box.minX + STONE_MARGIN_MM; x <= box.minX + STONE_MARGIN_MM + roomX; x += 40) {
+      const center = { x: snapMm(x + width / 2), y: snapMm(y + height / 2) };
+      const points = Array.from({ length: 64 }, (_, index) => {
+        const angle = (index * Math.PI * 2) / 64;
+        return {
+          x: center.x + (width / 2) * Math.cos(angle),
+          y: center.y + (height / 2) * Math.sin(angle),
+        };
+      });
+      const contour: InnerContour = {
+        id: `c${part.innerContours.length + 1}`,
+        kind: 'undermount_sink',
+        points,
+        widthMm: width,
+        heightMm: height,
+        clearanceMm: STONE_MARGIN_MM,
+        label: 'Cuba oval',
+      };
+      const overlapsExisting = part.innerContours.some((existing) => polygonsOverlap(existing.points, points));
+      if (overlapsExisting) continue;
+      const next = { ...part, innerContours: [...part.innerContours, contour] };
+      if (featuresFit(next)) return next;
+    }
+  }
+  return null;
+}
+
+function polygonsOverlap(first: Point2D[], second: Point2D[]): boolean {
+  if (first.some((point) => pointInPolygon(point, second)) || second.some((point) => pointInPolygon(point, first))) return true;
+  for (let firstIndex = 0; firstIndex < first.length; firstIndex += 1) {
+    const a = first[firstIndex];
+    const b = first[(firstIndex + 1) % first.length];
+    for (let secondIndex = 0; secondIndex < second.length; secondIndex += 1) {
+      const c = second[secondIndex];
+      const d = second[(secondIndex + 1) % second.length];
+      if (edgesCross(a, b, c, d)) return true;
+    }
+  }
+  return false;
 }

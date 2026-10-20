@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { addHole, addSink, boundsOf, dimensionLine, dragEdge, dragOpeningEdge, hasSelfIntersection, lPart, moveHole, moveOpening, netAreaMm2, rectanglePart } from './src/edit.ts';
+import { addHole, addOvalSink, addSink, boundsOf, dimensionLine, dragEdge, dragOpeningEdge, hasSelfIntersection, lPart, moveHole, moveOpening, netAreaMm2, polygonPart, rectanglePart, STONE_MARGIN_MM } from './src/edit.ts';
 
 const counter = {
   id: 'part-1',
@@ -67,6 +67,25 @@ const withHole = addHole(rect, 35);
 assert.ok(withHole);
 const withSink = addSink(rect);
 assert.ok(withSink && withSink.innerContours[0].widthMm === 500);
+const withOvalSink = addOvalSink(rect);
+assert.ok(withOvalSink);
+assert.equal(withOvalSink.innerContours[0].widthMm, 500);
+assert.equal(withOvalSink.innerContours[0].heightMm, 350);
+assert.equal(withOvalSink.innerContours[0].points.length, 64);
+assert.equal(hasSelfIntersection(withOvalSink.innerContours[0].points), false);
+assert.ok(withOvalSink.innerContours[0].points.every((point) =>
+  point.x >= STONE_MARGIN_MM && point.x <= 1200 - STONE_MARGIN_MM &&
+  point.y >= STONE_MARGIN_MM && point.y <= 600 - STONE_MARGIN_MM,
+));
+const customOutline = polygonPart(blank, [
+  { x: 200, y: 100 }, { x: 1400, y: 100 }, { x: 1400, y: 500 },
+  { x: 800, y: 500 }, { x: 800, y: 900 }, { x: 200, y: 900 },
+]);
+assert.ok(customOutline);
+assert.equal(customOutline.outerContour.length, 6);
+assert.equal(boundsOf(customOutline.outerContour).width, 1200);
+assert.equal(boundsOf(customOutline.outerContour).height, 800);
+assert.equal(polygonPart(blank, [{ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }, { x: 100, y: 0 }]), null);
 
 const top = dimensionLine({ x: 0, y: 0 }, { x: 2600, y: 0 }, 80);
 assert.equal(top.lengthMm, 2600);
