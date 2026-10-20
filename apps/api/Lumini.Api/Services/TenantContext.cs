@@ -17,21 +17,21 @@ public class TenantContext : ITenantContext
         get
         {
             var user = _httpContextAccessor.HttpContext?.User;
-            if (user == null || !user.Identity?.IsAuthenticated == true)
+            if (user?.Identity?.IsAuthenticated == true)
             {
-                // Fallback de desenvolvimento local se houver header explicito X-Tenant-Id (apenas para testes)
-                var headerTenant = _httpContextAccessor.HttpContext?.Request.Headers["X-Tenant-Id"].FirstOrDefault();
-                if (Guid.TryParse(headerTenant, out var parsedHeaderGuid))
-                {
-                    return parsedHeaderGuid;
-                }
-                return null;
+                var claim = user.FindFirst("tenant_id") ?? user.FindFirst("org_id");
+                if (claim != null && Guid.TryParse(claim.Value, out var tenantGuid))
+                    return tenantGuid;
             }
 
-            var claim = user.FindFirst("tenant_id") ?? user.FindFirst("org_id") ?? user.FindFirst(ClaimTypes.GroupSid);
-            if (claim != null && Guid.TryParse(claim.Value, out var tenantGuid))
+            // Fallback apenas em Development para testes sem JWT
+            var env = _httpContextAccessor.HttpContext?.RequestServices
+                .GetService<IHostEnvironment>();
+            if (env?.IsDevelopment() == true)
             {
-                return tenantGuid;
+                var headerTenant = _httpContextAccessor.HttpContext?.Request.Headers["X-Tenant-Id"].FirstOrDefault();
+                if (Guid.TryParse(headerTenant, out var parsedHeaderGuid))
+                    return parsedHeaderGuid;
             }
 
             return null;

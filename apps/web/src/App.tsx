@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Compass, 
   Scissors, 
@@ -9,11 +10,16 @@ import {
   Check,
   Sun,
   Moon,
-  Ruler
+  Ruler,
+  SignOut,
+  Users,
+  ShieldCheck
 } from '@phosphor-icons/react';
 import type { Part, EdgeSegment, Hole } from '@lumini/geometry-core';
+import { useAuth } from '@/features/auth/AuthContext';
 
 export default function App() {
+  const { user, logout, hasAnyPermission } = useAuth();
   const [isDark, setIsDark] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'drawing' | 'pricing' | 'cutting' | 'inventory' | 'documents'>('drawing');
   const [selectedPartId, setSelectedPartId] = useState<string>('part-1');
@@ -225,18 +231,34 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Rodapé da Sidebar */}
+        {/* Rodapé da Sidebar — perfil autenticado (UI-002) */}
         <div className="p-3 border-t border-sidebar-border space-y-2">
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1.5 font-medium">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              API .NET 8 / PostgreSQL
-            </span>
-            <span className="text-[10px] text-muted-foreground font-mono">v2.0-sprint0</span>
+          <div className="rounded-lg bg-card border border-border p-2.5 space-y-1">
+            <p className="text-xs font-semibold text-foreground truncate">{user?.organizationName ?? '—'}</p>
+            <p className="text-[11px] text-muted-foreground truncate">{user?.displayName} · {user?.roleName}</p>
           </div>
-          <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-            <span>Marmoraria GranVix</span>
-            <span className="capitalize">{isDark ? 'Dark Mode' : 'Light Mode'}</span>
+          <div className="flex flex-col gap-1">
+            {hasAnyPermission('members.read', 'organization.manage') && (
+              <Link to="/settings/members" className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-sidebar-accent">
+                <Users size={14} /> Membros
+              </Link>
+            )}
+            {hasAnyPermission('roles.read', 'organization.manage') && (
+              <Link to="/settings/roles" className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-sidebar-accent">
+                <ShieldCheck size={14} /> Papéis
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] text-muted-foreground hover:text-destructive hover:bg-sidebar-accent cursor-pointer"
+            >
+              <SignOut size={14} /> Sair
+            </button>
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+            <span>v2.0-sprint1</span>
+            <span className="capitalize">{isDark ? 'Dark' : 'Light'}</span>
           </div>
         </div>
       </aside>

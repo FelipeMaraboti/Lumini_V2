@@ -2,7 +2,7 @@
 
 **Versão do Documento:** 1.0  
 **Data:** 19/10/2026  
-**Status do Projeto:** Em Planejamento / Inicialização da Sprint 0  
+**Status do Projeto:** Sprint 0 concluída · Sprint 1 substancialmente concluída (auth/RBAC/UI)  
 **Referência Arquitetural:** `Lumini_Arquitetura_Completa/` (00 a 10) e `docs/PRODUCT_VISION.md`  
 **Governança:** `AGENTS.md`  
 
@@ -158,25 +158,26 @@ LuminiV2/
 ---
 
 ### Sprint 1: Identidade, Multi-Tenancy e RBAC
-**Meta:** Implementar isolamento rígido multi-tenant (`tenant_id`), cadastro de empresas (marmorarias), autenticação de usuários, convites e controle de permissões server-side (`06-SEGURANCA-RBAC.md`).
+**Meta:** Implementar isolamento rígido multi-tenant (`tenant_id`), cadastro de empresas (marmorarias), autenticação de usuários, convites e controle de permissões server-side (`06-SEGURANCA-RBAC.md`).  
+**Status:** **CONCLUÍDA (MVP Sprint 1) em 19/10/2026** — recovery de senha e testes de integração HTTP cross-tenant ficam como follow-up fino.
 
 #### Backend
-- [ ] Criar entidades de domínio: `User`, `Organization` (Tenant), `Membership`, `Role`, `Permission`, `Invitation`.
-- [ ] Implementar autenticação baseada em JWT com refresh token seguro e proteção contra brute-force / rate limit.
-- [ ] Configurar `TenantContext` resolvido automaticamente no pipeline de requisição através do token do usuário (nunca confiar no body).
-- [ ] Implementar Query Filters globais no EF Core para isolar automaticamente todas as entidades por `tenant_id`.
-- [ ] Implementar políticas de autorização baseadas em permissões (`organization.manage`, `projects.read`, `drawing.edit`, `quotes.approve`, etc.).
-- [ ] Criar endpoints de gerenciamento de membros da organização e envio de convites com hash temporário.
+- [x] Criar entidades de domínio: `User`, `Organization` (Tenant), `Membership`, `Role`, `Permission`, `Invitation` — *Concluído em 19/10/2026* (`Lumini.Domain/Identity/*`, catálogo `Permissions.All`).
+- [x] Implementar autenticação baseada em JWT com refresh token seguro e proteção contra brute-force / rate limit — *Concluído em 19/10/2026* (access 30min + refresh rotativo hasheado, `InMemoryLoginRateLimiter`, rate limit ASP.NET `auth-strict`).
+- [x] Configurar `TenantContext` resolvido automaticamente no pipeline de requisição através do token do usuário (nunca confiar no body) — *Concluído em 19/10/2026* (`Lumini.Api/Services/TenantContext.cs`, claim `tenant_id`).
+- [x] Implementar Query Filters globais no EF Core para isolar automaticamente todas as entidades por `tenant_id` — *Concluído em 19/10/2026* (`LuminiDbContext.CurrentTenantId` dinâmico + `ITenantScoped`).
+- [x] Implementar políticas de autorização baseadas em permissões (`organization.manage`, `projects.read`, `drawing.edit`, `quotes.approve`, etc.) — *Concluído em 19/10/2026* (`PermissionAuthorizationHandler` + policies `perm:*`).
+- [x] Criar endpoints de gerenciamento de membros da organização e envio de convites com hash temporário — *Concluído em 19/10/2026* (`GET/POST /members`, `accept-invitation`, `GET/POST /roles`, token SHA-256, migration `Sprint1_Identity`).
 
 #### Frontend
-- [ ] Construir tela de Login (`UI-001`) com tratamento de estados de erro, loading e validação Zod.
-- [ ] Construir layout do painel administrativo (`UI-002`) com seletor de organização e perfil do usuário autenticado.
-- [ ] Construir telas de Gestão de Usuários e Convites (`UI-012`) e Papéis (`UI-013`).
-- [ ] Implementar guardas de rota no React Router com base nas permissões ativas do usuário.
+- [x] Construir tela de Login (`UI-001`) com tratamento de estados de erro, loading e validação Zod — *Concluído em 19/10/2026* (`LoginPage` + `RegisterPage`).
+- [x] Construir layout do painel administrativo (`UI-002`) com seletor de organização e perfil do usuário autenticado — *Concluído em 19/10/2026* (perfil/org/logout no shell autenticado).
+- [x] Construir telas de Gestão de Usuários e Convites (`UI-012`) e Papéis (`UI-013`) — *Concluído em 19/10/2026* (`MembersPage`, `RolesPage`).
+- [x] Implementar guardas de rota no React Router com base nas permissões ativas do usuário — *Concluído em 19/10/2026* (`RequireAuth` + `AppRouter`).
 
 #### Testes & Segurança
-- [ ] Teste unitário e de integração para isolamento multi-tenant: garantir que usuário do Tenant A recebe `404` ou `403` ao tentar acessar dados do Tenant B (`RNF-001`).
-- [ ] Teste de recuperação de senha e convite de membros com expiração de token.
+- [ ] Teste unitário e de integração para isolamento multi-tenant: garantir que usuário do Tenant A recebe `404` ou `403` ao tentar acessar dados do Tenant B (`RNF-001`). *(Parcial: unit tests de domínio/rate-limit/hash OK; falta IntegrationTest HTTP cross-tenant.)*
+- [ ] Teste de recuperação de senha e convite de membros com expiração de token. *(Parcial: expiração/aceitação de convite coberta em unit tests; recovery de senha pendente.)*
 
 ---
 
@@ -416,8 +417,8 @@ LuminiV2/
 
 | Requisito | Descrição | Sprint Responsável | Status |
 |---|---|---|---|
-| `RF-001` | Autenticação e recuperação de usuários | Sprint 1 | [ ] Pendente |
-| `RF-002` | Isolamento estrito de empresas (Multi-tenant) | Sprint 1 | [ ] Pendente |
+| `RF-001` | Autenticação e recuperação de usuários | Sprint 1 | [x] Auth JWT/refresh; recovery de senha pendente |
+| `RF-002` | Isolamento estrito de empresas (Multi-tenant) | Sprint 1 | [x] TenantContext + query filters |
 | `RF-003` | Gestão de clientes da marmoraria | Sprint 2 | [ ] Pendente |
 | `RF-004` | Criação de projetos e controle de revisões | Sprint 2 | [ ] Pendente |
 | `RF-005` | Desenho de peças em 2D com medidas em mm | Sprint 4 | [ ] Pendente |
@@ -432,7 +433,7 @@ LuminiV2/
 | `RF-014` | Geração de PDFs técnicos para fabricação | Sprint 9 | [ ] Pendente |
 | `RF-015` | Autosave e recuperação de rascunhos | Sprint 4 | [ ] Pendente |
 | `RF-016` | Histórico e auditoria de alterações | Sprint 2 & 11 | [ ] Pendente |
-| `RF-017` | Administração de papéis e permissões (RBAC) | Sprint 1 | [ ] Pendente |
+| `RF-017` | Administração de papéis e permissões (RBAC) | Sprint 1 | [x] Policies + UI papéis/membros |
 | `RF-018` | Seleção de páginas na exportação de documentos | Sprint 9 | [ ] Pendente |
 | `RF-019` | Notificação e acompanhamento de jobs longos | Sprint 8 | [ ] Pendente |
 | `RF-021` | Destaque cruzado de bordas (Orçamento <-> Desenho)| Sprint 6 | [ ] Pendente |
@@ -444,8 +445,12 @@ LuminiV2/
 
 ## 6. Próximo Passo Imediato
 
-Iniciar a execução da **Sprint 0: Descoberta, Fundação do Repositório & CI/CD**:
-1. Criar a estrutura de diretórios monorepo (`apps/web`, `apps/api`, `packages/geometry-core`).
-2. Configurar o bootstrap do frontend (Vite + React + TypeScript + Tailwind CSS).
-3. Configurar a solução backend (.NET / C#) com as camadas Clean Architecture.
-4. Adicionar o `docker-compose.yml` para desenvolvimento local com PostgreSQL e MinIO.
+**Iniciar a Sprint 2** (Clientes & Projetos), nesta ordem:
+
+1. Entidades `Client`, `Project`, `ProjectRevision`, `ProjectAttachment` + máquina de estados.
+2. Revisões monotônicas imutáveis (`RN-005`) e concorrência otimista (`If-Match` / `version`).
+3. Upload de anexos via MinIO (URLs pré-assinadas) e `audit_events`.
+4. Frontend: listagem/criação de clientes e projetos (UI-003 a UI-006).
+5. Testes de conflito `409` e imutabilidade de revisão aprovada.
+
+**Follow-ups finos da Sprint 1 (não bloqueantes):** recovery de senha; teste de integração HTTP cross-tenant; mover JWT secret para secret store.

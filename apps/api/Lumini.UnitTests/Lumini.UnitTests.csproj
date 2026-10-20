@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Lumini.Domain\Lumini.Domain.csproj" />
     <ProjectReference Include="..\Lumini.Application\Lumini.Application.csproj" />
+    <ProjectReference Include="..\Lumini.Infrastructure\Lumini.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
