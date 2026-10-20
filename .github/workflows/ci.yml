@@ -1,0 +1,51 @@
+name: CI - Lumini V2
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  backend-ci:
+    name: Backend Build & Test (.NET 8)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore apps/api/Lumini.sln
+
+    - name: Build solution
+      run: dotnet build apps/api/Lumini.sln --no-restore --configuration Release
+
+    - name: Run Architecture & Unit Tests
+      run: dotnet test apps/api/Lumini.sln --no-build --configuration Release --verbosity normal
+
+  frontend-ci:
+    name: Frontend Build & Typecheck (Vite + React)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+        cache-dependency-path: apps/web/package-lock.json
+
+    - name: Install dependencies
+      working-directory: apps/web
+      run: npm ci
+
+    - name: Run TypeScript typecheck & Vite build
+      working-directory: apps/web
+      run: npm run build

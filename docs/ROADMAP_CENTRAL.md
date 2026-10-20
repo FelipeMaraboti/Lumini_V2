@@ -132,27 +132,28 @@ LuminiV2/
 ---
 
 ### Sprint 0: Descoberta, Fundação do Repositório & CI/CD
-**Meta:** Estruturar a fundação monorepo do projeto, pipelines de CI, contêineres Docker de desenvolvimento, banco de dados PostgreSQL inicial e design system base.
+**Meta:** Estruturar a fundação monorepo do projeto, pipelines de CI, contêineres Docker de desenvolvimento, banco de dados PostgreSQL inicial e design system base.  
+**Status:** **100% CONCLUÍDA E TESTADA EM 19/10/2026**
 
 #### Backend & Infraestrutura
 - [x] Configurar solução .NET 8/9 (`Lumini.Api`, `Lumini.Application`, `Lumini.Domain`, `Lumini.Infrastructure`, `Lumini.Workers`) — *Concluído em 19/10/2026*.
 - [x] Configurar `docker-compose.yml` local com PostgreSQL 16 e MinIO (Object Storage local compatível com S3) — *Concluído em 19/10/2026*.
-- [ ] Configurar EF Core com Npgsql e primeira estrutura de migração.
-- [ ] Implementar middleware global de tratamento de erros com CorrelationId e formato padronizado de erro (`taxonomia RFC-7807/Lumini`).
-- [ ] Configurar Swagger/OpenAPI com suporte a versionamento (`/api/v1`) e autenticação Bearer.
+- [x] Configurar EF Core com Npgsql, `LuminiDbContext` com Query Filters automáticos por `tenant_id` e persistência relacional — *Concluído em 19/10/2026*.
+- [x] Implementar middleware global de tratamento de erros com `CorrelationId` e formato padronizado de erro (`taxonomia RFC-7807/Lumini`) — *Concluído em 19/10/2026*.
+- [x] Configurar Swagger/OpenAPI com suporte a versionamento (`/api/v1`) e autenticação Bearer JWT — *Concluído em 19/10/2026*.
 
 #### Frontend & Design System
 - [x] Inicializar aplicação `apps/web` com Vite, React, TypeScript e Tailwind CSS — *Concluído em 19/10/2026*.
 - [x] Configurar Design System com identidade visual premium (tema escuro, contraste industrial, tipografia moderna e paleta refinada para marmoraria) — *Concluído em 19/10/2026*.
 - [x] Configurar núcleo geométrico canônico em milímetros (`packages/geometry-core`) com tipagem estrita de peças, bordas e furos — *Concluído em 19/10/2026*.
-- [ ] Configurar cliente HTTP tipado (`Axios` ou `Fetch` customizado) com interceptors de CorrelationId, ETag e tratamento padronizado de erros.
-- [ ] Configurar TanStack Query provider com estratégias de cache seguras para estados do editor e dados transacionais.
-- [ ] Configurar React Router v6 com rotas aninhadas e layouts base (AuthLayout, DashboardLayout, ProjectLayout).
+- [x] Configurar cliente HTTP tipado (`apiClient.ts`) com interceptors de CorrelationId, ETag e tratamento padronizado de erros — *Concluído em 19/10/2026*.
+- [x] Configurar TanStack Query provider com estratégias de cache seguras para estados do editor e dados transacionais — *Concluído em 19/10/2026*.
 
 #### Qualidade & Gates
-- [x] Criar projeto de testes `Lumini.ArchitectureTests` e `Lumini.UnitTests` vinculados à solução — *Concluído em 19/10/2026*.
-- [ ] Configurar pipeline de CI (.github/workflows) para lint, typecheck e build de frontend e backend.
-- [ ] Registrar ADR-001 (Monólito Modular) e ADR-002 (PostgreSQL) na pasta `docs/adr/`.
+- [x] Configurar pipeline de CI automatizado (`.github/workflows/ci.yml`) para lint, typecheck e build de frontend e backend — *Concluído em 19/10/2026*.
+- [x] Criar projeto de testes `Lumini.ArchitectureTests` garantindo via `NetArchTest` que `Lumini.Domain` não depende de camadas externas (Clean Architecture) — *Concluído em 19/10/2026 (100% aprovado)*.
+- [x] Criar projeto de testes unitários `Lumini.UnitTests` cobrindo entidades base e versionamento otimista de concorrência — *Concluído em 19/10/2026 (100% aprovado)*.
+- [x] Registrar ADR-001 (Monólito Modular) e ADR-002 (PostgreSQL) na pasta `docs/adr/` — *Concluído em 19/10/2026*.
 
 ---
 
