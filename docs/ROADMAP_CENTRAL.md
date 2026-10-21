@@ -294,7 +294,7 @@ LuminiV2/
 - [ ] Implementar motor de cálculo de custos e preços:
   - Custo de matéria-prima por área bruta e líquida ($m^2$);
   - Custo de acabamento linear por borda ($m$ linear de 45°, boleado, etc.);
-  - Custo de recortes e furações por unidade;
+  - Custo de recortes e furações por unidade. *Parcial em 21/10/2026: regra `Unit` na tabela, sem material nem acabamento. Sem a regra, o furo continua sem preço. Recortes, cola, frete e instalação seguem sem tarifa.*
   - Itens adicionais: cubas de inox/louça, colas epóxi, frete e mão de obra de instalação.
 - [x] Criação da entidade `Quote` vinculada estritamente à `ProjectRevision` e à `PricingTable` utilizada. *Rascunho em 21/10/2026 (`POST /projects/{id}/quotes`). Sem transição de aprovação.*
 - [ ] Implementar regras comerciais: margens de lucro, descontos autorizados e impostos.
@@ -306,7 +306,7 @@ LuminiV2/
 - [ ] Construir tela de Orçamento (`UI-008`):
   - Tabela detalhada de itens com agrupamento por peça;
   - Resumo de custos: matéria-prima, acabamentos de borda, furos e insumos;
-  - Destaque cruzado: clicar em uma linha de acabamento de borda na tabela destaca visualmente a aresta no desenho 2D (`RF-021`).
+  - Destaque cruzado: clicar em uma linha de acabamento de borda na tabela destaca visualmente a aresta no desenho 2D (`RF-021`). *Parcial em 21/10/2026: a linha do acabamento da revisão atual abre o editor com a peça e a aresta selecionadas.*
   - Formulário de condições de pagamento, validade da proposta e botões de envio/aprovação.
 
 #### Testes
@@ -456,7 +456,7 @@ LuminiV2/
 | `RF-017` | Administração de papéis e permissões (RBAC) | Sprint 1 | [x] Policies + UI papéis/membros |
 | `RF-018` | Seleção de páginas na exportação de documentos | Sprint 9 | [ ] Pendente |
 | `RF-019` | Notificação e acompanhamento de jobs longos | Sprint 8 | [ ] Pendente |
-| `RF-021` | Destaque cruzado de bordas (Orçamento <-> Desenho)| Sprint 6 | [ ] Pendente |
+| `RF-021` | Destaque cruzado de bordas (Orçamento <-> Desenho)| Sprint 6 | [ ] Parcial: a linha de acabamento da revisão atual abre a aresta no editor 2D |
 | `RF-022` | Anotações sobre imagens técnicas de fabricação | Sprint 9 | [ ] Pendente |
 | `RF-023` | Inspeção e medição em ambiente 3D | Sprint 5 | [ ] Cena, órbita e seleção prontas; régua e captura pendentes |
 | `RF-024` | Controle de concorrência por versão de projeto | Sprint 2 | [x] If-Match / 409 |
@@ -465,6 +465,6 @@ LuminiV2/
 
 ## 6. Próximo Passo Imediato
 
-**Sprints 4 e 5 seguem em andamento; Sprint 6 iniciada parcialmente.** Na Sprint 4 faltam o teste de 50 peças e o agrupamento. Na Sprint 5 faltam catálogo PBR, medição confirmada na pedra e captura para PDF. A Sprint 6 grava o acabamento do catálogo na aresta e o rascunho do cálculo, mas não deve ser considerada orçamento final até escolher área bruta ou líquida, configurar preços de furo e insumos e aprovar um Quote imutável.
+**Sprints 4 e 5 seguem em andamento; Sprint 6 iniciada parcialmente.** Na Sprint 4 faltam o teste de 50 peças e o agrupamento. Na Sprint 5 faltam catálogo PBR, medição confirmada na pedra e captura para PDF. A Sprint 6 grava o acabamento do catálogo na aresta, aceita preço de furação por unidade e abre a aresta a partir da linha do orçamento. Ainda não é orçamento final até escolher área bruta ou líquida, tarifar recortes e insumos e aprovar um Quote imutável.
 
 **Follow-ups finos (não bloqueantes):** recovery de senha; teste HTTP cross-tenant; mover JWT secret para secret store; validar `Storage:Provider=S3` com MinIO real quando o Docker estiver no ar (o adapter já existe; o desenvolvimento usa URL assinada local).

@@ -69,6 +69,12 @@ public static class QuoteCalculationEngine
             .Where(rule => rule.FinishTypeId.HasValue && rule.Basis == "LinearMeter")
             .GroupBy(rule => rule.FinishTypeId!.Value)
             .ToDictionary(group => group.Key, UniqueRule);
+        var holeRules = pricingTable.Rules
+            .Where(rule => rule.Basis == "Unit" && !rule.MaterialId.HasValue && !rule.FinishTypeId.HasValue)
+            .ToList();
+        if (holeRules.Count > 1)
+            throw new InvalidOperationException("A tabela possui mais de uma regra de furação por unidade.");
+        var holeRule = holeRules.SingleOrDefault();
         var lines = new List<QuotePreviewLineResponse>();
         var warnings = new List<QuotePreviewWarning>
         {
@@ -77,6 +83,7 @@ public static class QuoteCalculationEngine
         var grossMaterialSubtotal = 0m;
         var netMaterialSubtotal = 0m;
         var finishSubtotal = 0m;
+        var holeSubtotal = 0m;
         var complete = true;
         var unpricedMaterialCount = 0;
         var unpricedFinishCount = 0;
@@ -161,9 +168,16 @@ public static class QuoteCalculationEngine
 
             if (pricedByCode > 0)
                 warnings.Add(new QuotePreviewWarning("FINISH_PRICED_BY_CODE", $"A peça {part.PartCode} tem {pricedByCode} aresta(s) sem o acabamento do catálogo gravado; o preço usou o mapa de códigos."));
+
+            if (holes.Count > 0 && holeRule is not null)
+            {
+                var holeAmount = Money(holes.Count * holeRule.UnitPrice);
+                holeSubtotal += holeAmount;
+                lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "hole", "Furação", "un", holes.Count, holeRule.UnitPrice, holeAmount, holeAmount, "priced"));
+            }
         }
 
-        if (holeCount > 0)
+        if (holeCount > 0 && holeRule is null)
         {
             warnings.Add(new QuotePreviewWarning("HOLE_PRICING_NOT_CONFIGURED", $"A prévia contém {holeCount} furo(s), mas o catálogo atual não possui regra de preço para furação."));
             complete = false;
@@ -174,8 +188,8 @@ public static class QuoteCalculationEngine
         if (unpricedFinishCount > 0)
             warnings.Add(new QuotePreviewWarning("FINISH_LINES_UNPRICED", $"{unpricedFinishCount} linha(s) de acabamento não têm preço e foram excluídas dos subtotais calculados."));
 
-        decimal? grossTotal = complete ? Money(grossMaterialSubtotal + finishSubtotal) : null;
-        decimal? netTotal = complete ? Money(netMaterialSubtotal + finishSubtotal) : null;
+        decimal? grossTotal = complete ? Money(grossMaterialSubtotal + finishSubtotal + holeSubtotal) : null;
+        decimal? netTotal = complete ? Money(netMaterialSubtotal + finishSubtotal + holeSubtotal) : null;
 
         return new QuotePreviewResponse(
             projectId,

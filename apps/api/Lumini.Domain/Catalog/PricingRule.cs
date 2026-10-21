@@ -20,14 +20,20 @@ public class PricingRule : Entity, ITenantScoped
 
         var hasMaterial = materialId.HasValue && materialId.Value != Guid.Empty;
         var hasFinish = finishTypeId.HasValue && finishTypeId.Value != Guid.Empty;
-        if (hasMaterial == hasFinish)
+        if (hasMaterial && hasFinish)
             throw new ArgumentException("A regra deve referenciar um material ou um acabamento.");
+
+        if (!hasMaterial && !hasFinish && basis != PriceBasis.Unit)
+            throw new ArgumentException("A regra deve referenciar um material, um acabamento ou a furação por unidade.");
 
         if (hasMaterial && basis != PriceBasis.SquareMeter)
             throw new ArgumentException("Material é precificado por metro quadrado.");
 
         if (hasFinish && basis != PriceBasis.LinearMeter)
             throw new ArgumentException("Acabamento é precificado por metro linear.");
+
+        if (basis == PriceBasis.Unit && (hasMaterial || hasFinish))
+            throw new ArgumentException("Furação por unidade não referencia material nem acabamento.");
 
         if (unitPrice < 0)
             throw new ArgumentException("O preço não pode ser negativo.", nameof(unitPrice));
@@ -61,7 +67,7 @@ public class PricingRule : Entity, ITenantScoped
     public static PriceBasis ParseBasis(string value)
     {
         if (!Enum.TryParse<PriceBasis>(value, ignoreCase: true, out var basis))
-            throw new ArgumentException("A base de preço deve ser SquareMeter ou LinearMeter.", nameof(value));
+            throw new ArgumentException("A base de preço deve ser SquareMeter, LinearMeter ou Unit.", nameof(value));
 
         return basis;
     }

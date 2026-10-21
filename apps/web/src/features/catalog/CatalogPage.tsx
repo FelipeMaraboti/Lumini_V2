@@ -92,7 +92,7 @@ export function CatalogPage() {
   const [checkThickness, setCheckThickness] = useState('20');
   const [compatibility, setCompatibility] = useState<Compatibility | null>(null);
 
-  const [priceBasis, setPriceBasis] = useState<'SquareMeter' | 'LinearMeter'>('SquareMeter');
+  const [priceBasis, setPriceBasis] = useState<'SquareMeter' | 'LinearMeter' | 'Unit'>('SquareMeter');
   const [priceTarget, setPriceTarget] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
 
@@ -184,7 +184,7 @@ export function CatalogPage() {
 
   async function addRule(e: React.FormEvent) {
     e.preventDefault();
-    if (!defaultTable || !priceTarget) {
+    if (!defaultTable || (priceBasis !== 'Unit' && !priceTarget)) {
       setError('Selecione o material ou o acabamento da regra.');
       return;
     }
@@ -323,23 +323,28 @@ export function CatalogPage() {
 
         <form onSubmit={(e) => void addRule(e)} className="grid gap-3 rounded-xl border border-border bg-card p-4 md:grid-cols-2">
           <h2 className="md:col-span-2 text-sm font-semibold">{defaultTable ? defaultTable.name : 'Tabela de preços'} · BRL</h2>
-          <select value={priceBasis} onChange={(e) => { setPriceBasis(e.target.value as 'SquareMeter' | 'LinearMeter'); setPriceTarget(''); }} className="h-10 rounded-lg border border-input bg-background px-3 text-sm">
+          <select value={priceBasis} onChange={(e) => { setPriceBasis(e.target.value as 'SquareMeter' | 'LinearMeter' | 'Unit'); setPriceTarget(''); }} className="h-10 rounded-lg border border-input bg-background px-3 text-sm">
             <option value="SquareMeter">Material por m²</option>
             <option value="LinearMeter">Acabamento por metro linear</option>
+            <option value="Unit">Furação por unidade</option>
           </select>
-          <select value={priceTarget} onChange={(e) => setPriceTarget(e.target.value)} className="h-10 rounded-lg border border-input bg-background px-3 text-sm">
-            <option value="">Selecione</option>
-            {priceBasis === 'SquareMeter'
-              ? materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)
-              : finishes.map((finish) => <option key={finish.id} value={finish.id}>{finish.name}</option>)}
-          </select>
-          <MaskedInput mask="currency" unit={priceBasis === 'SquareMeter' ? '/ m²' : '/ m'} value={unitPrice} onChange={setUnitPrice} />
+          {priceBasis === 'Unit' ? (
+            <p className="flex h-10 items-center text-sm text-muted-foreground">Cada furo da peça, qualquer diâmetro.</p>
+          ) : (
+            <select value={priceTarget} onChange={(e) => setPriceTarget(e.target.value)} className="h-10 rounded-lg border border-input bg-background px-3 text-sm">
+              <option value="">Selecione</option>
+              {priceBasis === 'SquareMeter'
+                ? materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)
+                : finishes.map((finish) => <option key={finish.id} value={finish.id}>{finish.name}</option>)}
+            </select>
+          )}
+          <MaskedInput mask="currency" unit={priceBasis === 'SquareMeter' ? '/ m²' : priceBasis === 'Unit' ? '/ un' : '/ m'} value={unitPrice} onChange={setUnitPrice} />
           <button type="submit" className="h-10 rounded-lg border border-border bg-foreground/5 text-sm font-semibold text-foreground hover:border-primary/50">Adicionar regra</button>
           <ul className="md:col-span-2 space-y-1 text-sm">
             {defaultTable?.rules.map((rule) => (
               <li key={rule.id} className="flex justify-between border-t border-border py-2">
-                <span>{rule.basis === 'SquareMeter' ? materials.find((item) => item.id === rule.materialId)?.name : finishes.find((item) => item.id === rule.finishTypeId)?.name}</span>
-                <span><MaskedText mask="currency" unit={rule.basis === 'SquareMeter' ? '/ m²' : '/ m'} value={rule.unitPrice} /></span>
+                <span>{rule.basis === 'Unit' ? 'Furação' : rule.basis === 'SquareMeter' ? materials.find((item) => item.id === rule.materialId)?.name : finishes.find((item) => item.id === rule.finishTypeId)?.name}</span>
+                <span><MaskedText mask="currency" unit={rule.basis === 'SquareMeter' ? '/ m²' : rule.basis === 'Unit' ? '/ un' : '/ m'} value={rule.unitPrice} /></span>
               </li>
             ))}
           </ul>

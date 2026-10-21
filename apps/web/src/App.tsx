@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { 
   Compass, 
   Scissors, 
@@ -61,6 +61,7 @@ const profileGeometry: Record<string, { finish: EdgeFinishType; skirt: boolean }
 
 export default function App() {
   const { id: projectId } = useParams();
+  const [searchParams] = useSearchParams();
   const isProjectDrawing = Boolean(projectId);
   const { user, logout, hasAnyPermission } = useAuth();
   const [drawingProject, setDrawingProject] = useState<DrawingProject | null>(null);
@@ -103,6 +104,7 @@ export default function App() {
   const serverConflictRef = useRef(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const benchmarkRef = useRef<{ startedAt: number; original: PlacedPart[]; originalSelectedId: string } | null>(null);
+  const highlightRef = useRef<string | null>(null);
   const [space, setSpace] = useState<'2d' | '3d'>('2d');
   const placedRef = useRef(placed);
   const pastRef = useRef<PlacedPart[][]>([]);
@@ -331,6 +333,21 @@ export default function App() {
     if (!selectedEdgeId) return;
     document.getElementById(`edge-${selectedPartId}-${selectedEdgeId}`)?.scrollIntoView({ block: 'nearest' });
   }, [selectedEdgeId, selectedPartId]);
+
+  useEffect(() => {
+    const part = searchParams.get('part');
+    const edge = searchParams.get('edge');
+    const key = `${part ?? ''}:${edge ?? ''}`;
+    if (!part || placed.length === 0 || highlightRef.current === key) return;
+    if (!placed.some((item) => item.part.id === part)) return;
+    const target = placed.find((item) => item.part.id === part);
+    if (edge && !target?.part.edges.some((item) => item.id === edge)) return;
+    highlightRef.current = key;
+    setSelectedPartId(part);
+    setSelectedEdgeId(edge);
+    setSpace('2d');
+    setActiveTab('drawing');
+  }, [searchParams, placed]);
 
   function remember() {
     pastRef.current.push(structuredClone(placedRef.current));

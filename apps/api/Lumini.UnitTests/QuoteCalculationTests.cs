@@ -73,6 +73,33 @@ public class QuoteCalculationTests
     }
 
     [Fact]
+    public void HoleUnitRuleAddsTheExactAmountToBothScenarios()
+    {
+        var snapshotWithHole = Snapshot.Replace("\"holes\": [],", "\"holes\": [{\"diameterMm\":35},{\"diameterMm\":50}],");
+        var result = QuoteCalculationEngine.Calculate(
+            ProjectId,
+            RevisionId,
+            1,
+            snapshotWithHole,
+            Table([
+                Rule(MaterialId, null, "SquareMeter", 100m),
+                Rule(null, FinishId, "LinearMeter", 20m),
+                Rule(null, null, "Unit", 12.50m),
+            ]),
+            [MaterialItem()],
+            [FinishItem()]);
+
+        var hole = Assert.Single(result.Lines, line => line.Category == "hole");
+        Assert.Equal(2m, hole.Quantity);
+        Assert.Equal(25m, hole.GrossAmount);
+        Assert.Equal(25m, hole.NetAmount);
+        Assert.False(result.HasUnpricedGeometryLines);
+        Assert.DoesNotContain(result.Warnings, warning => warning.Code == "HOLE_PRICING_NOT_CONFIGURED");
+        Assert.Equal(95m, result.GrossAreaScenarioTotal);
+        Assert.Equal(result.NetMaterialSubtotal + result.FinishSubtotal + 25m, result.NetAreaScenarioTotal);
+    }
+
+    [Fact]
     public void StoredCatalogFinishIdPricesThatFinishInsteadOfTheGeometricCode()
     {
         var polishId = Guid.Parse("66666666-6666-6666-6666-666666666666");

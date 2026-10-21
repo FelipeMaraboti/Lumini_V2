@@ -49,6 +49,7 @@ interface QuotePreview {
   netAreaScenarioTotal: number | null;
   hasUnpricedGeometryLines: boolean;
   lines: Array<{
+    partId: string;
     partCode: string;
     category: string;
     description: string;
@@ -323,7 +324,13 @@ export function ProjectPage() {
                           {group.lines.map((line, index) => (
                             <tr key={`${group.partCode}-${line.category}-${line.edgeId ?? line.description}-${index}`}>
                               <td className="py-2 font-mono">{line.edgeId ?? '—'}</td>
-                              <td>{line.description}</td>
+                              <td>
+                                {line.edgeId && line.partId && selectedRevisionId === project.currentRevisionId ? (
+                                  <Link to={`/projects/${project.id}/drawing?part=${line.partId}&edge=${line.edgeId}`} className="text-primary hover:underline">
+                                    {line.description}
+                                  </Link>
+                                ) : line.description}
+                              </td>
                               <td>{line.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} {line.unit}</td>
                               <td>{line.unitPrice === null ? 'Sem regra' : currency(line.unitPrice)}</td>
                               <td>{line.grossAmount === null ? '—' : currency(line.grossAmount)}</td>

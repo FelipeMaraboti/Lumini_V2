@@ -77,6 +77,17 @@ public class CatalogRulesTests
     }
 
     [Fact]
+    public void PricingRule_StoresHolePricePerUnitWithoutMaterialOrFinish()
+    {
+        var rule = new PricingRule(Guid.NewGuid(), Guid.NewGuid(), null, null, PriceBasis.Unit, 12.50m);
+
+        Assert.Equal(12.50m, rule.UnitPrice);
+        Assert.Null(rule.MaterialId);
+        Assert.Null(rule.FinishTypeId);
+        Assert.Throws<ArgumentException>(() => new PricingRule(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, PriceBasis.Unit, 10m));
+    }
+
+    [Fact]
     public void TraditionalSeed_CoversFactoryProfiles()
     {
         var codes = FinishCatalog.Traditional.Select(f => f.Code).ToHashSet();

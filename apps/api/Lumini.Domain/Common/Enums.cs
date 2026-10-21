@@ -47,7 +47,8 @@ public enum RockKind
 public enum PriceBasis
 {
     SquareMeter = 1,
-    LinearMeter = 2
+    LinearMeter = 2,
+    Unit = 3
 }
 
 public enum CatalogStatus
