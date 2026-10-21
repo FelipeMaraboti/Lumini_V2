@@ -90,6 +90,19 @@ public class ProjectRepository : IProjectRepository
     public Task AddAuditAsync(AuditEvent auditEvent, CancellationToken ct = default) =>
         _context.AuditEvents.AddAsync(auditEvent, ct).AsTask();
 
+    public Task AddQuoteAsync(Quote quote, CancellationToken ct = default) =>
+        _context.Quotes.AddAsync(quote, ct).AsTask();
+
+    public Task<Quote?> GetQuoteByIdempotencyKeyAsync(Guid tenantId, string idempotencyKey, CancellationToken ct = default) =>
+        _context.Quotes.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(q => q.TenantId == tenantId && q.IdempotencyKey == idempotencyKey, ct);
+
+    public async Task<IReadOnlyList<Quote>> ListQuotesAsync(Guid tenantId, Guid projectId, CancellationToken ct = default) =>
+        await _context.Quotes.IgnoreQueryFilters()
+            .Where(q => q.TenantId == tenantId && q.ProjectId == projectId)
+            .OrderByDescending(q => q.CreatedAtUtc)
+            .ToListAsync(ct);
+
     public async Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
         try

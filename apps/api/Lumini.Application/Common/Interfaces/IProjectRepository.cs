@@ -24,5 +24,10 @@ public interface IProjectRepository
     Task<IReadOnlyList<ProjectAttachment>> ListAttachmentsAsync(Guid tenantId, Guid projectId, CancellationToken ct = default);
 
     Task AddAuditAsync(AuditEvent auditEvent, CancellationToken ct = default);
+
+    Task AddQuoteAsync(Quote quote, CancellationToken ct = default);
+    Task<Quote?> GetQuoteByIdempotencyKeyAsync(Guid tenantId, string idempotencyKey, CancellationToken ct = default);
+    Task<IReadOnlyList<Quote>> ListQuotesAsync(Guid tenantId, Guid projectId, CancellationToken ct = default);
+
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

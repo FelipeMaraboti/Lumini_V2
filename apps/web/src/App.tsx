@@ -19,6 +19,8 @@ import { addHole, addOvalSink, addSink, boundsOf, lPart, netAreaMm2, polygonPart
 import { useAuth } from '@/features/auth/AuthContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { MaskedText } from '@/components/ui/MaskedText';
+import { MmInput } from '@/components/ui/MaskedInput';
+import { parseMm } from '@/lib/masks';
 import { PieceEditor, type DimensionOverride } from '@/editor2d/PieceEditor';
 import { AssemblyView } from '@/editor3d/AssemblyView';
 import { initialKitchen, type PlacedPart } from '@/editor2d/kitchen';
@@ -37,6 +39,26 @@ const finishLabel: Record<EdgeFinishType, string> = {
   american_recess: 'Rebaixo americano',
 };
 
+interface CatalogFinish {
+  id: string;
+  code: string;
+  name: string;
+  profile: string;
+  minSlabThicknessMm: number;
+}
+
+const profileGeometry: Record<string, { finish: EdgeFinishType; skirt: boolean }> = {
+  'rebate-italian': { finish: 'italian_recess', skirt: false },
+  'rebate-american': { finish: 'american_recess', skirt: false },
+  'miter-45': { finish: 'miter_45', skirt: false },
+  'miter-45-skirt': { finish: 'miter_45', skirt: true },
+  bullnose: { finish: 'bullnose', skirt: false },
+  'half-bullnose': { finish: 'half_bullnose', skirt: false },
+  bevel: { finish: 'bevel', skirt: false },
+  'straight-polish': { finish: 'straight_polish', skirt: false },
+  'laminated-skirt': { finish: 'miter_45', skirt: true },
+};
+
 export default function App() {
   const { id: projectId } = useParams();
   const isProjectDrawing = Boolean(projectId);
@@ -45,6 +67,8 @@ export default function App() {
   const [drawingRevision, setDrawingRevision] = useState<DrawingRevision | null>(null);
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
   const [materials, setMaterials] = useState<Array<{ id: string; name: string; thicknessesMm: number[]; colorHex: string }>>([]);
+  const [finishes, setFinishes] = useState<CatalogFinish[]>([]);
+  const [holeDiameter, setHoleDiameter] = useState('35');
   const [selectedMaterialId, setSelectedMaterialId] = useState('');
   const [newWidthMm, setNewWidthMm] = useState(1200);
   const [newDepthMm, setNewDepthMm] = useState(600);
@@ -136,6 +160,20 @@ export default function App() {
       active = false;
     };
   }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    apiRequest<CatalogFinish[]>('/catalog/finishes')
+      .then(({ data }) => {
+        if (active) setFinishes(data);
+      })
+      .catch(() => {
+        if (active) setFinishes([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!draftKey) return;
@@ -384,9 +422,14 @@ export default function App() {
     const current = placedRef.current;
     const item = current.find((entry) => entry.part.id === selectedPartId);
     if (!item) return;
-    const part = addHole(item.part, 35);
+    const diameterMm = parseMm(holeDiameter);
+    if (!Number.isFinite(diameterMm) || diameterMm < 5 || diameterMm > 300) {
+      setEditorNotice('O diâmetro do furo precisa ficar entre 5 mm e 300 mm.');
+      return;
+    }
+    const part = addHole(item.part, diameterMm);
     if (!part) {
-      setEditorNotice('O furo de 35 mm não cabe nesta peça.');
+      setEditorNotice(`O furo de ${diameterMm} mm não cabe com a margem de 15 mm.`);
       return;
     }
     remember();
@@ -482,6 +525,35 @@ export default function App() {
     setSelectedPartId(benchmarkParts[0].part.id);
   }
 
+  function applyCatalogFinish(edgeId: string, finishId: string) {
+    const item = placedRef.current.find((entry) => entry.part.id === selectedPartId);
+    const catalog = finishes.find((finish) => finish.id === finishId);
+    if (!item || !catalog) return;
+    const geometry = profileGeometry[catalog.profile];
+    if (!geometry) {
+      setEditorNotice(`O perfil ${catalog.profile} ainda não tem desenho 2D/3D.`);
+      return;
+    }
+    if (item.part.thicknessMm < catalog.minSlabThicknessMm) {
+      setEditorNotice(`${catalog.name} exige chapa de ${catalog.minSlabThicknessMm} mm. Esta peça tem ${item.part.thicknessMm} mm.`);
+      return;
+    }
+    remember();
+    setPlaced((current) => current.map((entry) => {
+      if (entry.part.id !== item.part.id) return entry;
+      return {
+        ...entry,
+        part: {
+          ...entry.part,
+          edges: entry.part.edges.map((edge) => edge.id === edgeId
+            ? { ...edge, finish: geometry.finish, finishTypeId: catalog.id, skirtHeightMm: geometry.skirt ? edge.skirtHeightMm ?? 40 : undefined }
+            : edge),
+        },
+      };
+    }));
+    setEditorNotice(null);
+  }
+
   function cycleFinish(edgeId: string) {
     remember();
     const order: EdgeFinishType[] = ['raw', 'straight_polish', 'miter_45', 'bullnose', 'half_bullnose', 'bevel', 'italian_recess', 'american_recess'];
@@ -494,7 +566,7 @@ export default function App() {
           edges: item.part.edges.map((edge) => {
             if (edge.id !== edgeId) return edge;
             const finish = order[(order.indexOf(edge.finish) + 1) % order.length];
-            return { ...edge, finish, skirtHeightMm: finish === 'miter_45' ? edge.skirtHeightMm ?? 40 : undefined };
+            return { ...edge, finish, finishTypeId: undefined, skirtHeightMm: finish === 'miter_45' ? edge.skirtHeightMm ?? 40 : undefined };
           }),
         },
       };
@@ -820,7 +892,14 @@ export default function App() {
                   <ToolButton disabled={editorReadOnly} onClick={addL}>Em L</ToolButton>
                   <ToolButton disabled={editorReadOnly} active={polygonDrawing} onClick={polygonDrawing ? cancelPolygon : startPolygon}>Polígono livre</ToolButton>
                   {polygonDrawing && <ToolButton disabled={editorReadOnly || polygonPoints.length < 3} onClick={finishPolygon}>Finalizar contorno</ToolButton>}
-                  <ToolButton disabled={editorReadOnly} onClick={insertHole}>Furo Ø 35</ToolButton>
+                  <MmInput
+                    aria-label="Diâmetro do furo"
+                    value={holeDiameter}
+                    onChange={setHoleDiameter}
+                    disabled={editorReadOnly}
+                    className="h-7 w-24 border border-zinc-700 bg-transparent px-2 font-mono text-[10px] text-zinc-200"
+                  />
+                  <ToolButton disabled={editorReadOnly} onClick={insertHole}>Furo</ToolButton>
                   <ToolButton disabled={editorReadOnly} onClick={insertSink}>Cuba</ToolButton>
                   <ToolButton disabled={editorReadOnly} onClick={insertOvalSink}>Cuba oval</ToolButton>
                   <ToolButton disabled={editorReadOnly} onClick={undo}>Desfazer</ToolButton>
@@ -920,8 +999,22 @@ export default function App() {
                         >
                             <button type="button" onClick={() => setSelectedEdgeId(edge.id)} className="min-w-0 flex-1 text-left">
                             <span className="font-mono text-[10px] font-bold text-primary">{edge.id.toUpperCase()}</span>
-                            <span className="mt-0.5 block text-[11px] text-foreground">{finishLabel[edge.finish]}</span>
+                            <span className="mt-0.5 block text-[11px] text-foreground">
+                              {finishes.find((finish) => finish.id === edge.finishTypeId)?.name ?? finishLabel[edge.finish]}
+                            </span>
                           </button>
+                          {selectedEdgeId === edge.id && finishes.length > 0 && (
+                            <select
+                              aria-label={`Acabamento de catálogo da aresta ${edge.id}`}
+                              value={edge.finishTypeId ?? ''}
+                              onChange={(event) => applyCatalogFinish(edge.id, event.target.value)}
+                              disabled={editorReadOnly}
+                              className="mr-1 h-7 max-w-40 border border-border bg-card px-1 text-[10px] text-foreground"
+                            >
+                              <option value="" disabled>Catálogo</option>
+                              {finishes.map((finish) => <option key={finish.id} value={finish.id}>{finish.name}</option>)}
+                            </select>
+                          )}
                           <button
                             type="button"
                             onClick={() => {

@@ -33,6 +33,8 @@ export interface EdgeSegment {
   endIndex: number;
   lengthMm: Millimeters;
   finish: EdgeFinishType;
+  /** Acabamento do catálogo da marmoraria. Ausente em desenhos antigos, que o orçamento ainda resolve pelo código do perfil. */
+  finishTypeId?: string;
   skirtHeightMm?: Millimeters; // Altura da saia colada em 45° se aplicável (ex: 40mm)
   notes?: string;
 }

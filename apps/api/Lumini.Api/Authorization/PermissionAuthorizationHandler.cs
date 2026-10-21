@@ -35,6 +35,18 @@ public static class PermissionPolicyExtensions
             });
         }
 
+        builder.AddPolicy("perm:catalog.finishes.read", policy =>
+        {
+            policy.RequireAuthenticatedUser();
+            policy.RequireAssertion(context =>
+            {
+                var permissions = context.User.FindAll("permission").Select(claim => claim.Value).ToHashSet(StringComparer.Ordinal);
+                return permissions.Contains(Permissions.DrawingRead)
+                    || permissions.Contains(Permissions.PricingRead)
+                    || permissions.Contains(Permissions.OrganizationManage);
+            });
+        });
+
         return builder;
     }
 }

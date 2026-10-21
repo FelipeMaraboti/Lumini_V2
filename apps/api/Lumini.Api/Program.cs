@@ -186,6 +186,12 @@ if (app.Environment.IsDevelopment())
                 app.Logger.LogWarning("Tabelas do catálogo técnico criadas no SQLite de desenvolvimento.");
             }
 
+            if (!await SchemaHasTableAsync(db, "Quotes"))
+            {
+                await ApplyQuoteTableAsync(db);
+                app.Logger.LogWarning("Tabela de rascunhos de orçamento criada no SQLite de desenvolvimento.");
+            }
+
             app.Logger.LogWarning("Usando SQLite de desenvolvimento (lumini_dev.db). Suba o PostgreSQL via docker-compose para o ambiente canônico.");
         }
         else
@@ -441,6 +447,38 @@ static async Task ApplyCatalogTablesAsync(LuminiDbContext db)
             "Version" INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS "IX_PricingRules_TenantId_PricingTableId" ON "PricingRules" ("TenantId", "PricingTableId");
+        """;
+
+    foreach (var statement in sql.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        if (statement.Length == 0)
+            continue;
+
+        await db.Database.ExecuteSqlRawAsync(statement);
+    }
+}
+
+static async Task ApplyQuoteTableAsync(LuminiDbContext db)
+{
+    const string sql = """
+        CREATE TABLE IF NOT EXISTS "Quotes" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_Quotes" PRIMARY KEY,
+            "CreatedAtUtc" TEXT NOT NULL,
+            "Currency" TEXT NOT NULL,
+            "IdempotencyKey" TEXT NOT NULL,
+            "PricingTableId" TEXT NOT NULL,
+            "PricingTableVersion" INTEGER NOT NULL,
+            "ProjectId" TEXT NOT NULL,
+            "RevisionId" TEXT NOT NULL,
+            "RevisionNumber" INTEGER NOT NULL,
+            "SnapshotJson" TEXT NOT NULL,
+            "Status" INTEGER NOT NULL,
+            "TenantId" TEXT NOT NULL,
+            "UpdatedAtUtc" TEXT NULL,
+            "Version" INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Quotes_TenantId_IdempotencyKey" ON "Quotes" ("TenantId", "IdempotencyKey");
+        CREATE INDEX IF NOT EXISTS "IX_Quotes_TenantId_ProjectId_CreatedAtUtc" ON "Quotes" ("TenantId", "ProjectId", "CreatedAtUtc");
         """;
 
     foreach (var statement in sql.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))

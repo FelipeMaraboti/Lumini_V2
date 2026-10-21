@@ -31,7 +31,7 @@ public static class CatalogEndpoints
 
         catalog.MapGet("/finishes", async (ICatalogService service, CancellationToken ct) =>
             Results.Ok(await service.ListFinishesAsync(ct)))
-            .RequireAuthorization(AuthorizationPolicies.For(Permissions.PricingRead));
+            .RequireAuthorization("perm:catalog.finishes.read");
 
         catalog.MapPost("/finishes", async (UpsertFinishRequest request, ICatalogService service, HttpContext http, CancellationToken ct) =>
         {

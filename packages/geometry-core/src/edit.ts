@@ -365,6 +365,7 @@ function samePoint(first: Point2D, second: Point2D): boolean {
 }
 
 export function addHole(part: Part, diameterMm = 35): Part | null {
+  if (!Number.isFinite(diameterMm) || diameterMm < 5 || diameterMm > 300) return null;
   const box = boundsOf(part.outerContour);
   const radius = diameterMm / 2;
   const inset = radius + STONE_MARGIN_MM;

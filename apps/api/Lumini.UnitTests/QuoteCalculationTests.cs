@@ -73,6 +73,48 @@ public class QuoteCalculationTests
     }
 
     [Fact]
+    public void StoredCatalogFinishIdPricesThatFinishInsteadOfTheGeometricCode()
+    {
+        var polishId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        var snapshot = Snapshot.Replace(
+            "\"finish\":\"miter_45\",\"skirtHeightMm\":30",
+            $"\"finish\":\"miter_45\",\"skirtHeightMm\":30,\"finishTypeId\":\"{polishId}\"");
+        var result = QuoteCalculationEngine.Calculate(
+            ProjectId,
+            RevisionId,
+            2,
+            snapshot,
+            Table([Rule(MaterialId, null, "SquareMeter", 100m), Rule(null, polishId, "LinearMeter", 15m)]),
+            [MaterialItem()],
+            [FinishItem(), new(polishId, "polimento-simples", "Polimento simples", "Teste", "straight-polish", 12m, true, "Active", 1)]);
+
+        var finish = Assert.Single(result.Lines, line => line.Category == "finish");
+        Assert.Equal("Polimento simples", finish.Description);
+        Assert.Equal(15m, finish.GrossAmount);
+        Assert.Equal("e1", finish.EdgeId);
+        Assert.DoesNotContain(result.Warnings, warning => warning.Code == "FINISH_PRICED_BY_CODE");
+    }
+
+    [Fact]
+    public void UnknownCatalogFinishIdLeavesThePreviewIncomplete()
+    {
+        var snapshot = Snapshot.Replace(
+            "\"finish\":\"miter_45\",\"skirtHeightMm\":30",
+            "\"finish\":\"miter_45\",\"skirtHeightMm\":30,\"finishTypeId\":\"77777777-7777-7777-7777-777777777777\"");
+        var result = QuoteCalculationEngine.Calculate(
+            ProjectId,
+            RevisionId,
+            2,
+            snapshot,
+            Table([Rule(MaterialId, null, "SquareMeter", 100m)]),
+            [MaterialItem()],
+            [FinishItem()]);
+
+        Assert.True(result.HasUnpricedGeometryLines);
+        Assert.Contains(result.Warnings, warning => warning.Code == "FINISH_NOT_IN_CATALOG");
+    }
+
+    [Fact]
     public void RejectsUnsupportedGeometrySchema()
     {
         Assert.Throws<ArgumentException>(() => QuoteCalculationEngine.Calculate(

@@ -34,6 +34,7 @@ public class LuminiDbContext : DbContext
     public DbSet<FinishType> FinishTypes => Set<FinishType>();
     public DbSet<PricingTable> PricingTables => Set<PricingTable>();
     public DbSet<PricingRule> PricingRules => Set<PricingRule>();
+    public DbSet<Quote> Quotes => Set<Quote>();
 
     public LuminiDbContext(DbContextOptions<LuminiDbContext> options, ITenantContext? tenantContext = null)
         : base(options)
@@ -228,6 +229,17 @@ public class LuminiDbContext : DbContext
             entity.Property(r => r.Version).IsConcurrencyToken();
         });
 
+        modelBuilder.Entity<Quote>(entity =>
+        {
+            entity.HasKey(q => q.Id);
+            entity.HasIndex(q => new { q.TenantId, q.IdempotencyKey }).IsUnique();
+            entity.HasIndex(q => new { q.TenantId, q.ProjectId, q.CreatedAtUtc });
+            entity.Property(q => q.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(q => q.IdempotencyKey).HasMaxLength(80).IsRequired();
+            entity.Property(q => q.SnapshotJson).IsRequired();
+            entity.Property(q => q.Version).IsConcurrencyToken();
+        });
+
         // Query filter dinâmico: CurrentTenantId é lido a cada query (não capturado em Constant)
         modelBuilder.Entity<Role>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Client>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
@@ -241,6 +253,7 @@ public class LuminiDbContext : DbContext
         modelBuilder.Entity<FinishType>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<PricingTable>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<PricingRule>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Quote>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

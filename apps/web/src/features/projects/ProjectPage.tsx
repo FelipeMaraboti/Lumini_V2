@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, apiRequest } from '@/services/apiClient';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -29,6 +29,19 @@ interface PricingTable {
   isDefault: boolean;
 }
 
+interface QuoteDraft {
+  id: string;
+  revisionNumber: number;
+  pricingTableName: string;
+  currency: string;
+  status: string;
+  grossAreaScenarioTotal: number | null;
+  netAreaScenarioTotal: number | null;
+  hasUnpricedGeometryLines: boolean;
+  createdAtUtc: string;
+  replayed: boolean;
+}
+
 interface QuotePreview {
   revisionNumber: number;
   pricingTableName: string;
@@ -45,6 +58,7 @@ interface QuotePreview {
     grossAmount: number | null;
     netAmount: number | null;
     status: string;
+    edgeId?: string | null;
   }>;
   warnings: Array<{ code: string; message: string }>;
 }
@@ -69,7 +83,10 @@ export function ProjectPage() {
   const [pricingTables, setPricingTables] = useState<PricingTable[]>([]);
   const [pricingTableId, setPricingTableId] = useState('');
   const [quotePreview, setQuotePreview] = useState<QuotePreview | null>(null);
+  const [quoteIdempotencyKey, setQuoteIdempotencyKey] = useState<string | null>(null);
+  const [quoteDrafts, setQuoteDrafts] = useState<QuoteDraft[]>([]);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteSaving, setQuoteSaving] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
   async function load() {
@@ -98,6 +115,9 @@ export function ProjectPage() {
         setPricingTableId(data.find((item) => item.isDefault)?.id ?? data[0]?.id ?? '');
       })
       .catch((err) => setQuoteError(err instanceof ApiError ? err.message : 'Falha ao carregar tabelas de preço.'));
+    apiRequest<QuoteDraft[]>(`/projects/${id}/quotes`)
+      .then(({ data }) => setQuoteDrafts(data))
+      .catch((err) => setQuoteError(err instanceof ApiError ? err.message : 'Falha ao carregar rascunhos.'));
   }, [hasPermission]);
 
   async function calculateQuotePreview() {
@@ -110,11 +130,30 @@ export function ProjectPage() {
         body: JSON.stringify({ revisionId: selectedRevisionId, pricingTableId }),
       });
       setQuotePreview(data);
+      setQuoteIdempotencyKey(crypto.randomUUID());
     } catch (err) {
       setQuoteError(err instanceof ApiError ? err.message : 'Falha ao calcular a prévia.');
       setQuotePreview(null);
     } finally {
       setQuoteLoading(false);
+    }
+  }
+
+  async function saveQuoteDraft() {
+    if (!selectedRevisionId || !pricingTableId || !quoteIdempotencyKey) return;
+    setQuoteSaving(true);
+    setQuoteError(null);
+    try {
+      const { data } = await apiRequest<QuoteDraft>(`/projects/${id}/quotes`, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': quoteIdempotencyKey },
+        body: JSON.stringify({ revisionId: selectedRevisionId, pricingTableId }),
+      });
+      setQuoteDrafts((current) => current.some((item) => item.id === data.id) ? current : [data, ...current]);
+    } catch (err) {
+      setQuoteError(err instanceof ApiError ? err.message : 'Falha ao guardar o rascunho.');
+    } finally {
+      setQuoteSaving(false);
     }
   }
 
@@ -207,6 +246,7 @@ export function ProjectPage() {
             onChange={(e) => {
               setSelectedRevisionId(e.target.value);
               setQuotePreview(null);
+              setQuoteIdempotencyKey(null);
             }}
             className="mt-1 h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground"
           >
@@ -234,6 +274,7 @@ export function ProjectPage() {
                   onChange={(event) => {
                     setPricingTableId(event.target.value);
                     setQuotePreview(null);
+                    setQuoteIdempotencyKey(null);
                   }}
                   className="h-10 border border-input bg-card px-3 text-sm text-foreground"
                   disabled={!pricingTables.length || quoteLoading}
@@ -249,8 +290,16 @@ export function ProjectPage() {
               >
                 {quoteLoading ? 'Calculando…' : 'Calcular prévia'}
               </button>
+              <button
+                type="button"
+                onClick={() => void saveQuoteDraft()}
+                disabled={!quotePreview || !quoteIdempotencyKey || quoteSaving}
+                className="h-10 border border-border px-4 text-sm font-semibold disabled:opacity-50"
+              >
+                {quoteSaving ? 'Guardando…' : 'Guardar rascunho'}
+              </button>
             </div>
-            <p className="text-xs text-muted-foreground">Prévia vinculada à revisão e à tabela. Não é proposta aprovada; não inclui impostos, margem, descontos, frete, instalação ou insumos sem regra cadastrada.</p>
+            <p className="text-xs text-muted-foreground">Prévia vinculada à revisão e à tabela. O rascunho congela esse cálculo. Não aprova a proposta e não inclui impostos, margem, descontos, frete, instalação ou insumos sem regra cadastrada.</p>
             {quoteError && <p role="alert" className="text-sm text-destructive">{quoteError}</p>}
             {quotePreview && (
               <div className="space-y-3 border border-border bg-card p-4">
@@ -266,15 +315,22 @@ export function ProjectPage() {
                       <tr><th className="py-2">Peça</th><th>Item</th><th>Qtd.</th><th>Preço unit.</th><th>Bruto</th><th>Líquido</th></tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {quotePreview.lines.map((line, index) => (
-                        <tr key={`${line.partCode}-${line.category}-${line.description}-${index}`}>
-                          <td className="py-2 font-mono">{line.partCode}</td>
-                          <td>{line.description}</td>
-                          <td>{line.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} {line.unit}</td>
-                          <td>{line.unitPrice === null ? 'Sem regra' : currency(line.unitPrice)}</td>
-                          <td>{line.grossAmount === null ? '—' : currency(line.grossAmount)}</td>
-                          <td>{line.netAmount === null ? '—' : currency(line.netAmount)}</td>
-                        </tr>
+                      {groupQuoteLines(quotePreview.lines).map((group) => (
+                        <Fragment key={group.partCode}>
+                          <tr className="bg-muted/40">
+                            <td className="py-2 font-mono font-semibold" colSpan={6}>{group.partCode}</td>
+                          </tr>
+                          {group.lines.map((line, index) => (
+                            <tr key={`${group.partCode}-${line.category}-${line.edgeId ?? line.description}-${index}`}>
+                              <td className="py-2 font-mono">{line.edgeId ?? '—'}</td>
+                              <td>{line.description}</td>
+                              <td>{line.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} {line.unit}</td>
+                              <td>{line.unitPrice === null ? 'Sem regra' : currency(line.unitPrice)}</td>
+                              <td>{line.grossAmount === null ? '—' : currency(line.grossAmount)}</td>
+                              <td>{line.netAmount === null ? '—' : currency(line.netAmount)}</td>
+                            </tr>
+                          ))}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -285,6 +341,18 @@ export function ProjectPage() {
                   </ul>
                 )}
               </div>
+            )}
+            {quoteDrafts.length > 0 && (
+              <ul className="space-y-2 text-xs">
+                {quoteDrafts.map((draft) => (
+                  <li key={draft.id} className="flex flex-wrap items-baseline justify-between gap-2 border border-border bg-card px-3 py-2">
+                    <span>Rascunho · REV {draft.revisionNumber} · {draft.pricingTableName} · {draft.status}</span>
+                    <span className="font-mono text-muted-foreground">
+                      BRUTO {draft.grossAreaScenarioTotal === null ? 'incompleto' : currency(draft.grossAreaScenarioTotal)} · LÍQUIDO {draft.netAreaScenarioTotal === null ? 'incompleto' : currency(draft.netAreaScenarioTotal)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         )}
@@ -317,6 +385,16 @@ export function ProjectPage() {
       </div>
     </div>
   );
+}
+
+function groupQuoteLines(lines: QuotePreview['lines']) {
+  const groups: Array<{ partCode: string; lines: QuotePreview['lines'] }> = [];
+  for (const line of lines) {
+    const current = groups[groups.length - 1];
+    if (!current || current.partCode !== line.partCode) groups.push({ partCode: line.partCode, lines: [line] });
+    else current.lines.push(line);
+  }
+  return groups;
 }
 
 function currency(amount: number): string {

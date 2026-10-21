@@ -120,35 +120,34 @@ public static class QuoteCalculationEngine
                 lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "material", material.Name, "m²", grossAreaM2, materialRule.UnitPrice, grossAmount, netAmount, "priced"));
             }
 
+            var pricedByCode = 0;
             foreach (var edge in edges)
             {
-                if (edge.Finish == "raw") continue;
-                if (!FinishCatalogCodes.TryGetValue(edge.Finish, out var finishCode))
+                if (edge.Finish == "raw" && string.IsNullOrWhiteSpace(edge.FinishTypeId)) continue;
+                if (!TryResolveFinish(edge, finishByCode, finishes, out var finish, out var pricedFromCode, out var unresolved))
                 {
-                    lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "finish", edge.Finish, "m", 0m, null, null, null, "unsupported_finish"));
-                    warnings.Add(new QuotePreviewWarning("FINISH_MAPPING_MISSING", $"O acabamento '{edge.Finish}' da peça {part.PartCode} não possui mapeamento de catálogo."));
+                    lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "finish", unresolved, "m", 0m, null, null, null, "missing_catalog_finish", edge.Id));
+                    warnings.Add(new QuotePreviewWarning("FINISH_NOT_IN_CATALOG", $"O acabamento '{unresolved}' da peça {part.PartCode} não existe no catálogo ativo."));
                     unpricedFinishCount++;
                     complete = false;
                     continue;
                 }
 
-                if (edge.Finish == "miter_45" && edge.SkirtHeightMm is > 0m)
-                    finishCode = "meia-esquadria-45-saia";
-
-                if (!finishByCode.TryGetValue(finishCode, out var finish))
-                {
-                    lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "finish", finishCode, "m", 0m, null, null, null, "missing_catalog_finish"));
-                    warnings.Add(new QuotePreviewWarning("FINISH_NOT_IN_CATALOG", $"O acabamento '{finishCode}' não existe no catálogo ativo."));
-                    unpricedFinishCount++;
-                    complete = false;
-                    continue;
-                }
-
+                if (pricedFromCode) pricedByCode++;
                 var lengthMm = SegmentLength(outerContour, edge.StartIndex, edge.EndIndex);
                 var lengthM = lengthMm / MillimetersPerMeter;
-                if (!finishRules.TryGetValue(finish.Id, out var finishRule))
+                if (part.ThicknessMm > 0m && part.ThicknessMm < finish!.MinSlabThicknessMm)
                 {
-                    lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "finish", finish.Name, "m", lengthM, null, null, null, "missing_price"));
+                    lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "finish", finish.Name, "m", lengthM, null, null, null, "incompatible_thickness", edge.Id));
+                    warnings.Add(new QuotePreviewWarning("FINISH_THICKNESS_INCOMPATIBLE", $"A peça {part.PartCode} tem {part.ThicknessMm} mm e o acabamento {finish.Name} exige {finish.MinSlabThicknessMm} mm."));
+                    unpricedFinishCount++;
+                    complete = false;
+                    continue;
+                }
+
+                if (!finishRules.TryGetValue(finish!.Id, out var finishRule))
+                {
+                    lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "finish", finish.Name, "m", lengthM, null, null, null, "missing_price", edge.Id));
                     warnings.Add(new QuotePreviewWarning("FINISH_PRICE_MISSING", $"Não há regra por metro linear para o acabamento {finish.Name}."));
                     unpricedFinishCount++;
                     complete = false;
@@ -157,8 +156,11 @@ public static class QuoteCalculationEngine
 
                 var amount = Money(lengthM * finishRule.UnitPrice);
                 finishSubtotal += amount;
-                lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "finish", finish.Name, "m", lengthM, finishRule.UnitPrice, amount, amount, "priced"));
+                lines.Add(new QuotePreviewLineResponse(part.Id, part.PartCode, "finish", finish.Name, "m", lengthM, finishRule.UnitPrice, amount, amount, "priced", edge.Id));
             }
+
+            if (pricedByCode > 0)
+                warnings.Add(new QuotePreviewWarning("FINISH_PRICED_BY_CODE", $"A peça {part.PartCode} tem {pricedByCode} aresta(s) sem o acabamento do catálogo gravado; o preço usou o mapa de códigos."));
         }
 
         if (holeCount > 0)
@@ -299,6 +301,38 @@ public static class QuoteCalculationEngine
         return estimate;
     }
 
+    private static bool TryResolveFinish(
+        EdgeSnapshot edge,
+        IReadOnlyDictionary<string, FinishResponse> finishByCode,
+        IReadOnlyList<FinishResponse> finishes,
+        out FinishResponse? finish,
+        out bool pricedFromCode,
+        out string unresolved)
+    {
+        finish = null;
+        pricedFromCode = false;
+        unresolved = edge.Finish;
+        if (Guid.TryParse(edge.FinishTypeId, out var finishTypeId))
+        {
+            finish = finishes.FirstOrDefault(item => item.Id == finishTypeId);
+            unresolved = edge.FinishTypeId!;
+            return finish is not null;
+        }
+
+        if (!FinishCatalogCodes.TryGetValue(edge.Finish, out var finishCode))
+        {
+            unresolved = edge.Finish;
+            return false;
+        }
+
+        if (edge.Finish == "miter_45" && edge.SkirtHeightMm is > 0m)
+            finishCode = "meia-esquadria-45-saia";
+
+        pricedFromCode = true;
+        unresolved = finishCode;
+        return finishByCode.TryGetValue(finishCode, out finish);
+    }
+
     private static decimal Money(decimal amount) => decimal.Round(amount, 2, MidpointRounding.AwayFromZero);
 
     private sealed record DrawingSnapshot(List<PlacedPartSnapshot>? Placed);
@@ -311,9 +345,10 @@ public static class QuoteCalculationEngine
         List<PointSnapshot> OuterContour,
         List<EdgeSnapshot>? Edges,
         List<HoleSnapshot>? Holes,
-        List<ContourSnapshot>? InnerContours);
+        List<ContourSnapshot>? InnerContours,
+        decimal ThicknessMm = 0);
     private sealed record PointSnapshot(decimal X, decimal Y);
-    private sealed record EdgeSnapshot(int StartIndex, int EndIndex, string Finish, decimal? SkirtHeightMm);
+    private sealed record EdgeSnapshot(int StartIndex, int EndIndex, string Finish, decimal? SkirtHeightMm, string? Id = null, string? FinishTypeId = null);
     private sealed record HoleSnapshot(decimal DiameterMm);
     private sealed record ContourSnapshot(List<PointSnapshot> Points);
 }

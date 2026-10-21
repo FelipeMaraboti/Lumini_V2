@@ -28,6 +28,31 @@ public static class QuoteEndpoints
             .RequireAuthorization(AuthorizationPolicies.For(Permissions.ProjectsRead))
             .RequireAuthorization(AuthorizationPolicies.For(Permissions.QuotesCreate));
 
+        projects.MapGet("/{projectId:guid}/quotes", async (
+            Guid projectId,
+            QuotePreviewService service,
+            CancellationToken ct) =>
+                Results.Ok(await service.ListDraftsAsync(projectId, ct)))
+            .RequireAuthorization(AuthorizationPolicies.For(Permissions.ProjectsRead))
+            .RequireAuthorization(AuthorizationPolicies.For(Permissions.QuotesCreate));
+
+        projects.MapPost("/{projectId:guid}/quotes", async (
+            Guid projectId,
+            SaveQuoteDraftRequest request,
+            HttpContext http,
+            QuotePreviewService service,
+            CancellationToken ct) =>
+        {
+            var key = http.Request.Headers["Idempotency-Key"].FirstOrDefault();
+            var correlationId = http.Items["CorrelationId"]?.ToString();
+            var saved = await service.SaveDraftAsync(projectId, request, key, correlationId, ct);
+            return saved.Replayed
+                ? Results.Ok(saved)
+                : Results.Created($"/api/v1/projects/{projectId}/quotes/{saved.Id}", saved);
+        })
+            .RequireAuthorization(AuthorizationPolicies.For(Permissions.ProjectsRead))
+            .RequireAuthorization(AuthorizationPolicies.For(Permissions.QuotesCreate));
+
         return api;
     }
 }
